@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Her Angle — Shot Coach</title>
+<style>
+:root{--bg:#0f0e0d;--card:#1b1917;--line:#2e2a26;--tx:#f3eee8;--mut:#a39a90;--acc:#e8b26a;--ok:#7fd49b;--warn:#f0a35e;--bad:#ef7b6b}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+header{padding:18px 18px 6px}
+h1{font-size:22px;margin:0;letter-spacing:.2px}
+h1 span{color:var(--acc)}
+.sub{color:var(--mut);font-size:13px;margin-top:2px}
+nav{display:flex;gap:6px;padding:10px 14px;position:sticky;top:0;background:var(--bg);z-index:5;border-bottom:1px solid var(--line)}
+nav button{flex:1;padding:10px 6px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--mut);font-weight:600;font-size:14px}
+nav button.on{background:var(--acc);color:#1a1209;border-color:var(--acc)}
+main{padding:14px;max-width:720px;margin:0 auto}
+section{display:none}section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 6px}
+.mut{color:var(--mut);font-size:13px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;border:0;background:var(--acc);color:#1a1209;font-weight:700;font-size:15px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--tx);border:1px solid var(--line)}
+.btn.full{width:100%}
+label.btn input{display:none}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.thumbs div{position:relative;aspect-ratio:3/4;border-radius:8px;overflow:hidden;background:#000}
+.thumbs canvas{width:100%;height:100%;object-fit:cover;display:block}
+.thumbs b{position:absolute;left:4px;bottom:4px;font-size:10px;background:#000a;padding:1px 5px;border-radius:6px}
+ul.traits{list-style:none;padding:0;margin:6px 0 0}
+ul.traits li{padding:9px 0;border-top:1px solid var(--line);display:flex;gap:10px}
+ul.traits li:first-child{border-top:0}
+ul.traits .k{min-width:92px;color:var(--acc);font-weight:600;font-size:13px;padding-top:1px}
+.pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:#2a2622;color:var(--mut);margin-left:6px}
+textarea{width:100%;min-height:90px;background:#0b0a09;color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:8px;font:12px ui-monospace,monospace}
+.progress{height:6px;background:#2a2622;border-radius:9px;overflow:hidden;margin-top:10px;display:none}
+.progress i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+/* live */
+#stage{position:relative;width:100%;aspect-ratio:3/4;background:#000;border-radius:14px;overflow:hidden}
+#stage video,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#stage.match{box-shadow:0 0 0 4px var(--ok) inset}
+#hud{position:absolute;left:0;right:0;bottom:0;padding:12px;background:linear-gradient(transparent,#000c 40%)}
+#cue{font-size:22px;font-weight:800;text-shadow:0 1px 3px #000}
+#cue2{font-size:13px;color:#ddd;margin-top:2px;min-height:18px}
+#level{position:absolute;top:10px;left:50%;transform:translateX(-50%);font-size:12px;background:#000a;padding:4px 10px;border-radius:99px}
+.seg{display:flex;background:#0b0a09;border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;margin:10px 0}
+.seg button{flex:1;padding:8px;border:0;border-radius:8px;background:transparent;color:var(--mut);font-weight:600}
+.seg button.on{background:#2f2a25;color:var(--tx)}
+#shots{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+#shots img{width:100%;border-radius:8px;display:block}
+.fix{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+.fix:first-child{border-top:0}
+.dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none}
+.score{font-size:40px;font-weight:800}
+#checkView{width:100%;border-radius:12px;display:none;margin-bottom:10px}
+.note{border-left:3px solid var(--warn);padding:8px 10px;background:#24201b;border-radius:8px;font-size:13px;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Her <span>Angle</span></h1>
+  <div class="sub" id="profileLine">Loading…</div>
+</header>
+<nav>
+  <button data-tab="style" class="on">Her style</button>
+  <button data-tab="live">Live coach</button>
+  <button data-tab="check">Check a shot</button>
+</nav>
+<main>
+
+<section id="style" class="on">
+  <div class="card">
+    <h2>Build her style profile</h2>
+    <div class="mut">Add 15–50 photos of her that she loves, ideally the originals from her camera roll. Everything is analyzed on this phone and nothing is uploaded.</div>
+    <div class="row" style="margin-top:12px">
+      <label class="btn">Add photos<input type="file" id="refInput" accept="image/*" multiple></label>
+      <button class="btn ghost" id="resetBtn">Use starter profile</button>
+    </div>
+    <div class="progress" id="prog"><i></i></div>
+    <div class="mut" id="refStatus" style="margin-top:8px"></div>
+    <div class="thumbs" id="thumbs"></div>
+  </div>
+  <div class="card">
+    <h2>What she likes <span class="pill" id="srcPill"></span></h2>
+    <ul class="traits" id="traits"></ul>
+  </div>
+  <div class="card">
+    <h2>Move the profile to another device</h2>
+    <div class="mut">Copy this text and paste it into the same box on another phone.</div>
+    <textarea id="profileJson" spellcheck="false"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost" id="copyBtn">Copy</button>
+      <button class="btn ghost" id="loadJsonBtn">Load pasted profile</button>
+    </div>
+  </div>
+</section>
+
+<section id="live">
+  <div class="seg" id="cropSeg"></div>
+  <div id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="overlay"></canvas>
+    <div id="level">level —</div>
+    <div id="hud"><div id="cue">Tap Start</div><div id="cue2">The dashed lines show where she should be</div></div>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button class="btn" id="startBtn" style="flex:1">Start camera</button>
+    <button class="btn ghost" id="snapBtn" style="flex:1" disabled>Capture</button>
+  </div>
+  <div class="note" id="liveNote" style="display:none"></div>
+  <div class="mut" style="margin-top:10px">Lined up? Line it up here, then take the real shot with your camera app from the same spot. Capture here saves a video-quality frame.</div>
+  <div id="shots"></div>
+</section>
+
+<section id="check">
+  <div class="card">
+    <h2>Check a shot</h2>
+    <div class="mut">Take a photo or pick one you just took. You'll get a score and what to change for the next one.</div>
+    <label class="btn full" style="margin-top:12px">Take or choose a photo<input type="file" id="checkInput" accept="image/*"></label>
+  </div>
+  <canvas id="checkView"></canvas>
+  <div class="card" id="checkResult" style="display:none"></div>
+</section>
+
+</main>
+
+<script src="pose.js"></script>
+<script>
+"use strict";
+const FR = 4/3;              // Instagram portrait frame (3:4), height/width
+const $ = s => document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---------- starter profile (from 12 Instagram screenshots) ---------- */
+const STARTER = /*STARTER*/{"source": "starter: 12 Instagram screenshots", "n": 11, "created": "2026-11-18", "crops": {"full": 5, "three": 4, "half": 2}, "groups": {"full": {"scale": {"med": 0.197, "lo": 0.167, "hi": 0.227, "n": 5}, "height": {"med": 0.658, "lo": 0.608, "hi": 0.708, "n": 5}, "cx": {"med": 0.529, "lo": 0.461, "hi": 0.589, "n": 5}, "headroom": {"med": 0.282, "lo": 0.242, "hi": 0.322, "n": 5}, "ground": {"med": 0.063, "lo": 0.018, "hi": 0.093, "n": 5}, "legRatio": {"med": 1.507, "lo": 1.387, "hi": 1.627, "n": 5}, "turn": {"med": 0.074, "lo": -0.046, "hi": 0.194, "n": 5}}, "three": {"scale": {"med": 0.258, "lo": 0.228, "hi": 0.288, "n": 4}, "cx": {"med": 0.504, "lo": 0.444, "hi": 0.564, "n": 4}, "headroom": {"med": 0.258, "lo": 0.218, "hi": 0.298, "n": 4}, "turn": {"med": 0.5355, "lo": 0.3692, "hi": 0.6833, "n": 4}}, "half": {"scale": {"med": 0.2585, "lo": 0.2135, "hi": 0.3035, "n": 2}, "cx": {"med": 0.5715, "lo": 0.4815, "hi": 0.6615, "n": 2}, "headroom": {"med": 0.2735, "lo": 0.2135, "hi": 0.3335, "n": 2}, "turn": {"med": 0.638, "lo": 0.458, "hi": 0.818, "n": 2}}}, "light": {"lum": {"med": 0.326, "lo": 0.172, "hi": 0.406, "n": 11}, "warmth": {"med": 0.065, "lo": 0.035, "hi": 0.106, "n": 11}, "pop": {"med": 0.084, "lo": -0.003, "hi": 0.167, "n": 11}}}/*END*/;
+
+/* ---------- storage ---------- */
+function save(p){try{localStorage.setItem('herAngleProfile',JSON.stringify(p))}catch(e){}}
+function loadSaved(){try{const s=localStorage.getItem('herAngleProfile');return s?JSON.parse(s):null}catch(e){return null}}
+let PROFILE = loadSaved() || STARTER;
+
+/* ---------- pose engine ---------- */
+let pose, poseReady=false, pending=null;
+/* model files ship as base64 scripts (host only serves common file types); serve them to MediaPipe via a tiny in-memory file system */
+const VFS={};
+(function(){
+  const of=window.fetch.bind(window);
+  window.fetch=(u,o)=>{const s=(u&&u.url)||String(u); if(s.startsWith('vfs:')&&VFS[s.slice(4)]) return Promise.resolve(new Response(VFS[s.slice(4)].slice(0),{status:200})); return of(u,o);};
+  const P=XMLHttpRequest.prototype, oOpen=P.open, oSend=P.send;
+  P.open=function(m,u,...a){ if(String(u).startsWith('vfs:')){this.__vfs=String(u).slice(4);return;} return oOpen.call(this,m,u,...a); };
+  P.send=function(b){ if(!this.__vfs) return oSend.call(this,b);
+    const buf=VFS[this.__vfs].buffer.slice(0), x=this;
+    Object.defineProperty(x,'status',{value:200});Object.defineProperty(x,'readyState',{value:4});Object.defineProperty(x,'response',{value:buf});
+    setTimeout(()=>{const n=buf.byteLength;
+      x.dispatchEvent(new ProgressEvent('progress',{lengthComputable:true,loaded:n,total:n}));
+      x.dispatchEvent(new ProgressEvent('load',{lengthComputable:true,loaded:n,total:n}));
+      x.dispatchEvent(new ProgressEvent('loadend',{lengthComputable:true,loaded:n,total:n}));},0);
+  };
+})();
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+async function loadAssets(){
+  await Promise.all(['asset_model.js','asset_pack.js','asset_graph.js'].map(loadScript));
+  for(const [k,v] of Object.entries(window.__HA)){const b=atob(v),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);VFS[k]=u;}
+  window.__HA=null;
+}
+let initP=null;
+function initPose(){ return initP ||= _initPose(); }
+async function _initPose(){
+  await loadAssets();
+  pose = new Pose({locateFile: f => VFS[f] ? 'vfs:'+f : f});
+  pose.setOptions({modelComplexity:1, smoothLandmarks:false, enableSegmentation:false, minDetectionConfidence:0.5, minTrackingConfidence:0.5});
+  pose.onResults(r => { const p=pending; pending=null; p && p(r); });
+  await pose.initialize();
+  poseReady=true;
+}
+function detect(src){
+  return new Promise(async (res,rej)=>{ pending=res; try{ await pose.send({image:src}); }catch(e){pending=null;rej(e)} });
+}
+
+/* ---------- geometry: map to centered 3:4 frame ---------- */
+function frameRect(w,h){
+  if(h/w > FR){ const ch=w*FR; return {x:0,y:(h-ch)/2,w,h:ch}; }
+  const cw=h/FR; return {x:(w-cw)/2,y:0,w:cw,h};
+}
+function toFrame(lms,w,h){
+  const r=frameRect(w,h);
+  return lms.map(l=>({x:(l.x*w-r.x)/r.w, y:(l.y*h-r.y)/r.h, v:l.visibility??1}));
+}
+
+/* ---------- light measurement ---------- */
+const lc=document.createElement('canvas'); lc.width=48; lc.height=64;
+const lx=lc.getContext('2d',{willReadFrequently:true});
+function measureLight(src,w,h,box){
+  const r=frameRect(w,h);
+  lx.drawImage(src,r.x,r.y,r.w,r.h,0,0,48,64);
+  const d=lx.getImageData(0,0,48,64).data;
+  let L=0,R=0,B=0,n=0,sL=0,sn=0;
+  for(let y=0;y<64;y++)for(let x=0;x<48;x++){
+    const i=(y*48+x)*4, l=(0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2])/255;
+    L+=l;R+=d[i];B+=d[i+2];n++;
+    if(box && x/48>box.x0&&x/48<box.x1&&y/64>box.y0&&y/64<box.y1){sL+=l;sn++}
+  }
+  const lum=L/n, bgLum = box&&sn<n ? (L-sL)/(n-sn) : lum;
+  return {lum, warmth:(R-B)/n/255, pop: box&&sn? (sL/sn)-bgLum : 0};
+}
+
+/* ---------- metrics from landmarks ---------- */
+function metrics(lm){
+  const ok=i=>lm[i].v>0.5 && lm[i].x>-0.02&&lm[i].x<1.02&&lm[i].y>-0.02&&lm[i].y<1.0;
+  const mid=(a,b)=>({x:(lm[a].x+lm[b].x)/2,y:(lm[a].y+lm[b].y)/2});
+  if(!(ok(11)||ok(12))||lm[0].v<0.3) return null;
+  const sh=mid(11,12), hip=mid(23,24), nose=lm[0];
+  const torsoY = hip.y - sh.y;
+  if(torsoY<=0.01) return null;
+  const headTop = nose.y - 0.75*Math.max(0.01, sh.y-nose.y);
+  const feetIdx=[27,28,29,30,31,32].filter(ok);
+  const feetIn = feetIdx.length>=2 && (ok(27)||ok(28));
+  const kneesIn = ok(25)||ok(26);
+  const crop = feetIn ? 'full' : kneesIn ? 'three' : 'half';
+  const footY = feetIn ? Math.max(...feetIdx.map(i=>lm[i].y)) : null;
+  const ank = feetIn ? (ok(27)&&ok(28) ? (lm[27].y+lm[28].y)/2 : ok(27)?lm[27].y:lm[28].y) : null;
+  const shW = Math.hypot((lm[11].x-lm[12].x)*3, (lm[11].y-lm[12].y)*4); // in frame units (w=3,h=4)
+  const m = {
+    crop,
+    scale: torsoY,                         // torso length / frame height  → distance
+    height: feetIn ? footY - headTop : null,// full-body height / frame height
+    cx: (sh.x+hip.x)/2,                    // horizontal position
+    headroom: headTop,                     // space above head
+    ground: feetIn ? 1-footY : null,       // space below feet
+    legRatio: feetIn ? (ank-hip.y)/torsoY : null, // >: lower camera
+    turn: shW/(torsoY*4),                  // shoulder width vs torso: low = turned / looking back
+  };
+  const xs=lm.filter((l,i)=>i>10&&l.v>0.5).map(l=>l.x);
+  m.box={x0:clamp(Math.min(...xs)-.05,0,1),x1:clamp(Math.max(...xs)+.05,0,1),y0:clamp(headTop,0,1),y1:clamp(footY??1,0,1)};
+  return m;
+}
+
+/* ---------- build profile ---------- */
+const KEYS=['scale','height','cx','headroom','ground','legRatio','turn'];
+const MINTOL={scale:.03,height:.05,cx:.06,headroom:.04,ground:.03,legRatio:.12,turn:.12,lum:.08,warmth:.03,pop:.04};
+function stat(vals,k){
+  vals=vals.filter(v=>v!=null&&isFinite(v)).sort((a,b)=>a-b);
+  if(!vals.length) return null;
+  const q=p=>{const i=(vals.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return vals[lo]+(vals[hi]-vals[lo])*(i-lo)};
+  const med=q(.5), t=MINTOL[k]*(vals.length<4?1.5:1);
+  return {med:+med.toFixed(4), lo:+Math.min(q(.25),med-t).toFixed(4), hi:+Math.max(q(.75),med+t).toFixed(4), n:vals.length};
+}
+function buildProfile(items,source){
+  const p={source, n:items.length, created:new Date().toISOString().slice(0,10), crops:{}, groups:{}, light:{}};
+  for(const c of ['full','three','half']){
+    const g=items.filter(m=>m.crop===c); if(!g.length) continue;
+    p.crops[c]=g.length; p.groups[c]={};
+    for(const k of KEYS){const s=stat(g.map(m=>m[k]),k); if(s) p.groups[c][k]=s;}
+  }
+  for(const k of ['lum','warmth','pop']) p.light[k]=stat(items.map(m=>m[k]),k);
+  return p;
+}
+
+/* ---------- plain-language summary ---------- */
+const CROPNAME={full:'Full length, feet in frame',three:'Cropped below the knees',half:'Cropped at mid-thigh or tighter'};
+function describe(p){
+  const out=[], tot=p.n||1;
+  const order=Object.entries(p.crops).sort((a,b)=>b[1]-a[1]);
+  out.push(['Framing', order.map(([c,n])=>`${CROPNAME[c]}: ${n} of ${tot}`).join('<br>')]);
+  const f=p.groups.full;
+  if(f){
+    if(f.height) out.push(['Distance', `In full-length shots she fills about <b>${Math.round(f.height.med*100)}%</b> of the frame height, so there's plenty of setting around her.`]);
+    if(f.ground) out.push(['Feet', f.ground.med<0.04?'Feet sit close to the bottom edge.':`About <b>${Math.round(f.ground.med*100)}%</b> of the frame is ground below her feet. Don't cut off her toes.`]);
+    if(f.legRatio){const r=f.legRatio.med; out.push(['Phone height', r>1.75?'<b>Low, around your waist or hip</b>. Her legs look long.':r>1.5?'<b>Around chest or waist height</b>, held fairly level.':'<b>Around eye level</b>.']);}
+  }
+  const any=p.groups[order[0]?.[0]];
+  if(any?.cx){const d=any.cx.med-0.5; out.push(['Position', Math.abs(d)<0.06?'<b>Centered</b> in the frame.':`A little <b>${d<0?'left':'right'}</b> of center.`]);}
+  if(any?.headroom) out.push(['Headroom', `About <b>${Math.round(any.headroom.med*100)}%</b> of the frame above her head.`]);
+  if(any?.turn){const t=any.turn.med; out.push(['Pose', t<0.55?'<b>Turned to the side</b>: three-quarter, or looking back over her shoulder.':t<0.8?'<b>Slightly angled</b>, rarely square to the camera.':'Mostly <b>facing the camera</b>.']);}
+  if(p.light?.lum){
+    const L=p.light.lum.med, W=p.light.warmth?.med??0, P=p.light.pop?.med??0;
+    out.push(['Light', `${L<0.38?'<b>Dim and moody</b>':L<0.55?'<b>Medium, soft</b>':'<b>Bright</b>'}, ${W>0.07?'<b>warm</b> tones (golden hour, lamps, candles)':W>0.02?'neutral-warm tones':'cool or neutral tones'}${P>0.03?'. She is lit a bit brighter than the background.':'.'}`]);
+  }
+  return out;
+}
+
+/* ---------- compare a shot to profile ---------- */
+function targetGroup(m,want){
+  const g=PROFILE.groups;
+  if(want && g[want]) return want;
+  if(m && g[m.crop]) return m.crop;
+  return Object.entries(PROFILE.crops).sort((a,b)=>b[1]-a[1])[0][0];
+}
+function coach(m,want,tilt){
+  const fixes=[];
+  if(!m) return {fixes:[{s:3,t:'Find her in the frame',d:'Point the camera at her so her head and shoulders are visible.'}],score:0};
+  const gk=targetGroup(m,want), g=PROFILE.groups[gk];
+  const add=(s,t,d)=>fixes.push({s,t,d});
+  if(gk==='full' && m.crop!=='full') add(3,'Step back','Her feet are cut off. In full-length shots she keeps her feet in.');
+  if(gk!=='full' && m.crop==='full') add(2,'Step closer','Crop above her feet for this look.');
+  if(tilt && Math.abs(tilt.gamma)>4) add(2, tilt.gamma>0?'Rotate counter-clockwise':'Rotate clockwise', `The phone is ${Math.abs(tilt.gamma).toFixed(0)}° off level. Keep verticals straight.`);
+  const size = gk==='full' ? ['height',m.height] : ['scale',m.scale];
+  const S=g[size[0]];
+  if(S && size[1]!=null){ if(size[1]<S.lo) add(2,'Step closer','She looks smaller than in the photos she likes.'); else if(size[1]>S.hi) add(2,'Step back','She looks bigger in the frame than she usually likes.'); }
+  if(g.legRatio && m.legRatio!=null && m.crop==='full'){ if(m.legRatio<g.legRatio.lo) add(2,'Lower the phone','Drop toward waist or hip height. Her favorites are shot from lower.'); else if(m.legRatio>g.legRatio.hi) add(1,'Raise the phone a little','This angle is lower than she usually likes.'); }
+  if(g.cx){ if(m.cx<g.cx.lo) add(1,'Move the phone left','So she sits where she likes in the frame.'); else if(m.cx>g.cx.hi) add(1,'Move the phone right','So she sits where she likes in the frame.'); }
+  if(m.headroom<0.01) add(3,'Tilt up','Her head is clipped.');
+  else if(g.headroom && m.headroom>g.headroom.hi+0.05) add(1,'Tilt down slightly','Too much empty space above her head.');
+  if(gk==='full' && g.ground && m.ground!=null){ if(m.ground<Math.max(0.005,g.ground.lo-0.02)) add(1,'Tilt down a touch','Leave a little ground under her feet.'); else if(m.ground>g.ground.hi+0.04) add(1,'Tilt up a touch','Too much ground below her feet.'); }
+  const L=PROFILE.light, notes=[];
+  if(m.lum!=null && L?.lum){
+    if(m.lum>L.lum.hi+0.08) notes.push('Brighter than she likes. Try shade, or drag exposure down (tap her face, then slide down).');
+    else if(m.lum<L.lum.lo-0.1) notes.push('Darker than her favorites. Move her toward a lamp or window.');
+    if(L.warmth && m.warmth<L.warmth.lo-0.03) notes.push('The light is cooler than her style. Golden hour or warm lamps suit her better.');
+  }
+  if(g.turn && m.turn>g.turn.hi+0.1) notes.push('Pose tip: ask her to turn sideways and look back over her shoulder.');
+  fixes.sort((a,b)=>b.s-a.s);
+  const pen=fixes.reduce((a,f)=>a+(f.s===3?35:f.s===2?18:8),0)+notes.length*5;
+  return {fixes,notes,score:clamp(100-pen,0,100),group:gk};
+}
+
+/* ---------- UI: tabs ---------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===b.dataset.tab));
+  if(b.dataset.tab!=='live') stopLive();
+  if(b.dataset.tab==='live') renderSeg();
+});
+
+function renderProfile(){
+  if(!PROFILE){$('#profileLine').textContent='No profile yet';return;}
+  $('#profileLine').textContent=`Profile: ${PROFILE.n} photos · ${PROFILE.source}`;
+  $('#srcPill').textContent=PROFILE.source;
+  $('#traits').innerHTML=describe(PROFILE).map(([k,v])=>`<li><span class="k">${k}</span><span>${v}</span></li>`).join('');
+  $('#profileJson').value=JSON.stringify(PROFILE);
+}
+
+/* ---------- load images ---------- */
+function loadImg(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file);const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=u;});}
+async function analyzeImage(img){
+  const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+  // downscale big originals for speed
+  const s=Math.min(1,1280/Math.max(w,h)); const c=document.createElement('canvas'); c.width=Math.round(w*s); c.height=Math.round(h*s);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  pose.reset && pose.reset();
+  const r=await detect(c);
+  if(!r.poseLandmarks) return {canvas:c,m:null};
+  const lm=toFrame(r.poseLandmarks,c.width,c.height);
+  const m=metrics(lm);
+  if(m) Object.assign(m, measureLight(c,c.width,c.height,m.box));
+  return {canvas:c,m,lm};
+}
+function drawSkeleton(ctx,lm,W,H,color){
+  const P=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[27,31],[28,32]];
+  ctx.strokeStyle=color;ctx.lineWidth=Math.max(2,W/180);ctx.lineCap='round';
+  for(const[a,b]of P){if(lm[a].v<.5||lm[b].v<.5)continue;ctx.beginPath();ctx.moveTo(lm[a].x*W,lm[a].y*H);ctx.lineTo(lm[b].x*W,lm[b].y*H);ctx.stroke();}
+}
+function thumb(c,lm,label){
+  const d=document.createElement('div'); const t=document.createElement('canvas'); t.width=150;t.height=200;
+  const r=frameRect(c.width,c.height); const x=t.getContext('2d'); x.drawImage(c,r.x,r.y,r.w,r.h,0,0,150,200);
+  if(lm) drawSkeleton(x,lm,150,200,'#e8b26a');
+  d.appendChild(t); d.insertAdjacentHTML('beforeend',`<b>${label}</b>`); return d;
+}
+
+$('#refInput').onchange=async e=>{
+  const files=[...e.target.files]; if(!files.length) return;
+  const prog=$('#prog'), bar=prog.querySelector('i'); prog.style.display='block';
+  $('#refStatus').textContent='Loading the pose model…'; $('#thumbs').innerHTML='';
+  await initPose();
+  const items=[]; let skipped=0;
+  for(let i=0;i<files.length;i++){
+    $('#refStatus').textContent=`Analyzing ${i+1} of ${files.length}…`; bar.style.width=((i+1)/files.length*100)+'%';
+    try{const img=await loadImg(files[i]); const a=await analyzeImage(img);
+      if(a.m){items.push(a.m); $('#thumbs').appendChild(thumb(a.canvas,a.lm,a.m.crop==='full'?'full':a.m.crop==='three'?'below knee':'mid-thigh'));}
+      else {skipped++; $('#thumbs').appendChild(thumb(a.canvas,null,'no person'));}
+    }catch(err){skipped++;}
+  }
+  prog.style.display='none';
+  if(items.length<3){$('#refStatus').textContent=`Only ${items.length} usable photo(s). Add at least 3 where she's clearly visible.`;return;}
+  PROFILE=buildProfile(items,'your photos'); save(PROFILE); renderProfile();
+  $('#refStatus').textContent=`Done: ${items.length} photos used${skipped?`, ${skipped} skipped (no clear person)`:''}.`;
+  e.target.value='';
+};
+$('#resetBtn').onclick=()=>{PROFILE=STARTER;try{localStorage.removeItem('herAngleProfile')}catch(e){};renderProfile();$('#thumbs').innerHTML='';$('#refStatus').textContent='Using the starter profile from her 12 screenshots.';};
+$('#copyBtn').onclick=async()=>{try{await navigator.clipboard.writeText($('#profileJson').value);$('#copyBtn').textContent='Copied';}catch(e){$('#profileJson').select();$('#copyBtn').textContent='Select & copy manually';}setTimeout(()=>$('#copyBtn').textContent='Copy',2000)};
+$('#loadJsonBtn').onclick=()=>{try{const p=JSON.parse($('#profileJson').value);if(!p.groups)throw 0;PROFILE=p;save(p);renderProfile();$('#loadJsonBtn').textContent='Loaded';}catch(e){$('#loadJsonBtn').textContent='That text isn\'t a profile';}setTimeout(()=>$('#loadJsonBtn').textContent='Load pasted profile',2000)};
+
+/* ---------- check a shot ---------- */
+$('#checkInput').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const box=$('#checkResult'); box.style.display='block'; box.innerHTML='<div class="mut">Analyzing…</div>';
+  await initPose();
+  const img=await loadImg(f); const a=await analyzeImage(img);
+  const v=$('#checkView'), r=frameRect(a.canvas.width,a.canvas.height); v.width=r.w; v.height=r.h; v.style.display='block';
+  const x=v.getContext('2d'); x.drawImage(a.canvas,r.x,r.y,r.w,r.h,0,0,r.w,r.h);
+  if(a.lm) drawSkeleton(x,a.lm,r.w,r.h,'#e8b26a');
+  drawGuides(x,r.w,r.h,targetGroup(a.m));
+  const c=coach(a.m);
+  const col=c.score>=80?'var(--ok)':c.score>=55?'var(--warn)':'var(--bad)';
+  box.innerHTML=`<div class="row" style="align-items:baseline;gap:12px"><div class="score" style="color:${col}">${c.score}</div><div class="mut">match to her style${c.group?` · compared with her ${CROPNAME[c.group].toLowerCase()} shots`:''}</div></div>`+
+    (c.fixes.length?c.fixes.map(f=>`<div class="fix"><span class="dot" style="background:${f.s===3?'var(--bad)':f.s===2?'var(--warn)':'#8a8178'}"></span><div><b>${f.t}</b><div class="mut">${f.d}</div></div></div>`).join(''):'<div class="fix"><span class="dot" style="background:var(--ok)"></span><div><b>Framing matches her style</b></div></div>')+
+    (c.notes?.length?`<div class="note">${c.notes.join('<br>')}</div>`:'')+
+    `<div class="mut" style="margin-top:8px">The dashed lines show where her head, feet and center usually fall. The outer frame is the 3:4 Instagram crop.</div>`;
+  e.target.value='';
+};
+
+/* ---------- guides overlay ---------- */
+function drawGuides(ctx,W,H,gk){
+  const g=PROFILE?.groups?.[gk]; if(!g) return;
+  ctx.save(); ctx.setLineDash([8,8]); ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,.75)';
+  const hl=y=>{ctx.beginPath();ctx.moveTo(W*.12,y*H);ctx.lineTo(W*.88,y*H);ctx.stroke();};
+  if(g.headroom) hl(g.headroom.med);
+  if(gk==='full'&&g.ground) hl(1-g.ground.med);
+  if(g.cx){ctx.beginPath();ctx.moveTo(g.cx.med*W,H*.1);ctx.lineTo(g.cx.med*W,H*.9);ctx.stroke();}
+  ctx.restore();
+}
+
+/* ---------- live coach ---------- */
+let stream=null, running=false, busy=false, tilt=null, wantCrop=null, lastLight={}, frameN=0, lastM=null, hold=0;
+function renderSeg(){
+  if(!PROFILE) return;
+  const order=Object.entries(PROFILE.crops).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+  if(!wantCrop||!order.includes(wantCrop)) wantCrop=order[0];
+  const nm={full:'Full length',three:'Below knee',half:'Mid-thigh'};
+  $('#cropSeg').innerHTML=order.map(c=>`<button data-c="${c}" class="${c===wantCrop?'on':''}">${nm[c]} <span class="mut">(${PROFILE.crops[c]})</span></button>`).join('');
+  $('#cropSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{wantCrop=b.dataset.c;renderSeg();});
+}
+function onOrient(e){ if(e.beta==null) return;
+  // portrait: gamma = left/right roll, beta ≈ 90 when upright
+  tilt={beta:e.beta,gamma:e.gamma};
+  const up=e.beta-90;
+  $('#level').textContent=`${Math.abs(e.gamma)<=4?'✓ level':'tilted '+Math.abs(e.gamma).toFixed(0)+'°'} · camera ${up>2?'aimed up '+up.toFixed(0)+'°':up<-2?'aimed down '+(-up).toFixed(0)+'°':'straight'}`;
+}
+async function startLive(){
+  const note=$('#liveNote'); note.style.display='none';
+  $('#cue').textContent='Starting…';
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission){ try{ if(await DeviceOrientationEvent.requestPermission()==='granted') addEventListener('deviceorientation',onOrient);}catch(e){} }
+    else addEventListener('deviceorientation',onOrient);
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1440}},audio:false});
+  }catch(err){
+    $('#cue').textContent='Camera unavailable';
+    note.style.display='block';
+    note.innerHTML='The camera is blocked here. That happens inside the Claude app and some in-app browsers. Open this page in Safari or Chrome from its own link, or use <b>Check a shot</b>, which works everywhere.';
+    return;
+  }
+  const v=$('#video'); v.srcObject=stream; await v.play();
+  $('#cue').textContent='Loading pose model…';
+  await initPose(); pose.setOptions({smoothLandmarks:true}); pose.reset&&pose.reset();
+  running=true; $('#startBtn').textContent='Stop'; $('#snapBtn').disabled=false; loop();
+}
+function stopLive(){
+  running=false; if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  removeEventListener('deviceorientation',onOrient);
+  $('#startBtn').textContent='Start camera'; $('#snapBtn').disabled=true; $('#stage').classList.remove('match');
+  if(pose) pose.setOptions({smoothLandmarks:false});
+}
+$('#startBtn').onclick=()=>running?stopLive():startLive();
+
+async function loop(){
+  if(!running) return;
+  const v=$('#video'), oc=$('#overlay');
+  if(!busy && v.videoWidth){
+    busy=true;
+    try{
+      const r=await detect(v);
+      const W=oc.clientWidth*devicePixelRatio, H=oc.clientHeight*devicePixelRatio; oc.width=W; oc.height=H;
+      const ctx=oc.getContext('2d');
+      const lm=r.poseLandmarks?toFrame(r.poseLandmarks,v.videoWidth,v.videoHeight):null;
+      let m=lm?metrics(lm):null;
+      if(m && (frameN++%15===0)) lastLight=measureLight(v,v.videoWidth,v.videoHeight,m.box);
+      if(m) Object.assign(m,lastLight);
+      const c=coach(m,wantCrop,tilt);
+      drawGuides(ctx,W,H,wantCrop);
+      if(lm) drawSkeleton(ctx,lm,W,H,c.fixes.length?'rgba(232,178,106,.9)':'rgba(127,212,155,.95)');
+      const good=m && !c.fixes.some(f=>f.s>=2) && c.fixes.length<=1;
+      hold = good ? hold+1 : 0;
+      $('#stage').classList.toggle('match',hold>3);
+      if(hold>3){ $('#cue').textContent='✓ That\'s her angle. Shoot now'; $('#cue2').textContent=(c.notes&&c.notes[0])||'Ask her to move naturally and fire a burst.'; }
+      else { $('#cue').textContent=c.fixes[0]?.t||'Almost there'; $('#cue2').textContent=c.fixes[1]?('Then: '+c.fixes[1].t.toLowerCase()):(c.notes?.[0]||c.fixes[0]?.d||''); }
+    }catch(e){}
+    busy=false;
+  }
+  setTimeout(loop,60);
+}
+$('#snapBtn').onclick=()=>{
+  const v=$('#video'); if(!v.videoWidth) return;
+  const r=frameRect(v.videoWidth,v.videoHeight), c=document.createElement('canvas'); c.width=r.w; c.height=r.h;
+  c.getContext('2d').drawImage(v,r.x,r.y,r.w,r.h,0,0,r.w,r.h);
+  c.toBlob(b=>{const i=new Image(); i.src=URL.createObjectURL(b); $('#shots').prepend(i);},'image/jpeg',0.92);
+};
+
+/* ---------- boot ---------- */
+renderProfile();
+window.__herAngle={initPose,analyzeImage,buildProfile,loadImg,describe,coach};
+</script>
+</body>
+</html>
