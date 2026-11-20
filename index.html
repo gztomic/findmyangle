@@ -104,7 +104,7 @@ textarea{width:100%;min-height:90px;background:#0b0a09;color:var(--tx);border:1p
     <video id="video" playsinline muted autoplay></video>
     <canvas id="overlay"></canvas>
     <div id="level">level —</div>
-    <div id="hud"><div id="cue">Tap Start</div><div id="cue2">The dashed lines show where she should be</div></div>
+    <div id="hud"><div id="cue">Tap Start</div><div id="cue2">Move until the solid box fills the dashed box</div></div>
   </div>
   <div class="row" style="margin-top:10px">
     <button class="btn" id="startBtn" style="flex:1">Start camera</button>
@@ -234,6 +234,8 @@ function metrics(lm){
     turn: shW/(torsoY*4),                  // shoulder width vs torso: low = turned / looking back
   };
   const xs=lm.filter((l,i)=>i>10&&l.v>0.5).map(l=>l.x);
+  const bx0=Math.min(...xs),bx1=Math.max(...xs),bp=(bx1-bx0)*.12+.02;
+  m.body={x0:clamp(bx0-bp,0,1),x1:clamp(bx1+bp,0,1),y0:clamp(headTop,0,1),y1:clamp(footY??1,0,1)};
   m.box={x0:clamp(Math.min(...xs)-.05,0,1),x1:clamp(Math.max(...xs)+.05,0,1),y0:clamp(headTop,0,1),y1:clamp(footY??1,0,1)};
   return m;
 }
@@ -392,25 +394,44 @@ $('#checkInput').onchange=async e=>{
   const v=$('#checkView'), r=frameRect(a.canvas.width,a.canvas.height); v.width=r.w; v.height=r.h; v.style.display='block';
   const x=v.getContext('2d'); x.drawImage(a.canvas,r.x,r.y,r.w,r.h,0,0,r.w,r.h);
   if(a.lm) drawSkeleton(x,a.lm,r.w,r.h,'#e8b26a');
-  drawGuides(x,r.w,r.h,targetGroup(a.m));
   const c=coach(a.m);
+  drawGuides(x,r.w,r.h,targetGroup(a.m),a.m,c.score>=80);
   const col=c.score>=80?'var(--ok)':c.score>=55?'var(--warn)':'var(--bad)';
   box.innerHTML=`<div class="row" style="align-items:baseline;gap:12px"><div class="score" style="color:${col}">${c.score}</div><div class="mut">match to her style${c.group?` · compared with her ${CROPNAME[c.group].toLowerCase()} shots`:''}</div></div>`+
     (c.fixes.length?c.fixes.map(f=>`<div class="fix"><span class="dot" style="background:${f.s===3?'var(--bad)':f.s===2?'var(--warn)':'#8a8178'}"></span><div><b>${f.t}</b><div class="mut">${f.d}</div></div></div>`).join(''):'<div class="fix"><span class="dot" style="background:var(--ok)"></span><div><b>Framing matches her style</b></div></div>')+
     (c.notes?.length?`<div class="note">${c.notes.join('<br>')}</div>`:'')+
-    `<div class="mut" style="margin-top:8px">The dashed lines show where her head, feet and center usually fall. The outer frame is the 3:4 Instagram crop.</div>`;
+    `<div class="mut" style="margin-top:8px">The dashed box is where she usually sits in the frame (her spot). The solid box is where she is in this photo. The outer frame is the 3:4 Instagram crop.</div>`;
   e.target.value='';
 };
 
 /* ---------- guides overlay ---------- */
-function drawGuides(ctx,W,H,gk){
-  const g=PROFILE?.groups?.[gk]; if(!g) return;
-  ctx.save(); ctx.setLineDash([8,8]); ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,.75)';
-  const hl=y=>{ctx.beginPath();ctx.moveTo(W*.12,y*H);ctx.lineTo(W*.88,y*H);ctx.stroke();};
-  if(g.headroom) hl(g.headroom.med);
-  if(gk==='full'&&g.ground) hl(1-g.ground.med);
-  if(g.cx){ctx.beginPath();ctx.moveTo(g.cx.med*W,H*.1);ctx.lineTo(g.cx.med*W,H*.9);ctx.stroke();}
+function targetBox(gk,m){
+  const g=PROFILE?.groups?.[gk]; if(!g||!g.headroom||!g.cx) return null;
+  const y0=g.headroom.med, y1=(gk==='full'&&g.ground)?1-g.ground.med:1;
+  const h=y1-y0;
+  let w;
+  if(m&&m.body){const bw=m.body.x1-m.body.x0, bh=Math.max(.05,m.body.y1-m.body.y0); w=bw*h/bh;} // keep her current width:height
+  else w=h*(gk==='full'?0.4:0.55);
+  w=clamp(w,0.12,0.9);
+  return {x0:g.cx.med-w/2,x1:g.cx.med+w/2,y0,y1};
+}
+function bracketBox(ctx,b,W,H,color,dashed,label){
+  const x=b.x0*W,y=b.y0*H,w=(b.x1-b.x0)*W,h=(b.y1-b.y0)*H,c=Math.min(w,h)*.18,lw=Math.max(2,W/200);
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=lw;
+  if(dashed){ctx.setLineDash([lw*4,lw*3]); ctx.strokeRect(x,y,w,h); ctx.setLineDash([]); ctx.lineWidth=lw*2.2;
+    // corner brackets
+    for(const[px,py,dx,dy]of[[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]]){ctx.beginPath();ctx.moveTo(px+dx*c,py);ctx.lineTo(px,py);ctx.lineTo(px,py+dy*c);ctx.stroke();}
+    // center tick
+    ctx.lineWidth=lw; ctx.beginPath(); ctx.moveTo(x+w/2,y-lw*4); ctx.lineTo(x+w/2,y+lw*4); ctx.moveTo(x+w/2,y+h-lw*4); ctx.lineTo(x+w/2,y+h+lw*4); ctx.stroke();
+  } else { ctx.strokeRect(x,y,w,h); }
+  if(label){ctx.font=`600 ${Math.max(11,W/32)}px -apple-system,sans-serif`; const tw=ctx.measureText(label).width+12, th=Math.max(18,W/22);
+    const ly=y-th-4<0?y+4:y-th-4; ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(x,ly,tw,th); ctx.fillStyle=color; ctx.textBaseline='middle'; ctx.fillText(label,x+6,ly+th/2);}
   ctx.restore();
+}
+function drawGuides(ctx,W,H,gk,m,matched){
+  const t=targetBox(gk,m); if(!t) return;
+  bracketBox(ctx,t,W,H,matched?'rgba(127,212,155,.95)':'rgba(255,255,255,.9)',true,matched?'Her spot ✓':'Her spot');
+  if(m&&m.body) bracketBox(ctx,m.body,W,H,matched?'rgba(127,212,155,.95)':'rgba(232,178,106,.95)',false,null);
 }
 
 /* ---------- live coach ---------- */
@@ -469,10 +490,10 @@ async function loop(){
       if(m && (frameN++%15===0)) lastLight=measureLight(v,v.videoWidth,v.videoHeight,m.box);
       if(m) Object.assign(m,lastLight);
       const c=coach(m,wantCrop,tilt);
-      drawGuides(ctx,W,H,wantCrop);
-      if(lm) drawSkeleton(ctx,lm,W,H,c.fixes.length?'rgba(232,178,106,.9)':'rgba(127,212,155,.95)');
       const good=m && !c.fixes.some(f=>f.s>=2) && c.fixes.length<=1;
       hold = good ? hold+1 : 0;
+      drawGuides(ctx,W,H,wantCrop,m,hold>3);
+      if(lm) drawSkeleton(ctx,lm,W,H,hold>3?'rgba(127,212,155,.7)':'rgba(232,178,106,.6)');
       $('#stage').classList.toggle('match',hold>3);
       if(hold>3){ $('#cue').textContent='✓ That\'s her angle. Shoot now'; $('#cue2').textContent=(c.notes&&c.notes[0])||'Ask her to move naturally and fire a burst.'; }
       else { $('#cue').textContent=c.fixes[0]?.t||'Almost there'; $('#cue2').textContent=c.fixes[1]?('Then: '+c.fixes[1].t.toLowerCase()):(c.notes?.[0]||c.fixes[0]?.d||''); }
