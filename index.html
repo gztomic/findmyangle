@@ -43,9 +43,9 @@ textarea{width:100%;min-height:90px;background:#0b0a09;color:var(--tx);border:1p
 #stage video,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #stage.match{box-shadow:0 0 0 4px var(--ok) inset}
 #hud{position:absolute;left:0;right:0;bottom:0;padding:12px;background:linear-gradient(transparent,#000c 40%)}
-#cue{font-size:22px;font-weight:800;text-shadow:0 1px 3px #000}
+#cue{font-size:19px;font-weight:800;text-shadow:0 1px 3px #000}
 #cue2{font-size:13px;color:#ddd;margin-top:2px;min-height:18px}
-#level{position:absolute;top:10px;left:50%;transform:translateX(-50%);font-size:12px;background:#000a;padding:4px 10px;border-radius:99px}
+#level{display:none}
 .seg{display:flex;background:#0b0a09;border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;margin:10px 0}
 .seg button{flex:1;padding:8px;border:0;border-radius:8px;background:transparent;color:var(--mut);font-weight:600}
 .seg button.on{background:#2f2a25;color:var(--tx)}
@@ -119,7 +119,7 @@ textarea{width:100%;min-height:90px;background:#0b0a09;color:var(--tx);border:1p
     <video id="video" playsinline muted autoplay></video>
     <canvas id="overlay"></canvas>
     <div id="level">level —</div>
-    <div id="hud"><div id="cue">Tap Start</div><div id="cue2">Pick a look above, or Auto. Fit the solid box into the dashed one.</div></div>
+    <div id="hud"><div id="cue">Tap Start</div><div id="cue2">Follow the arrow into the ring, and move each side gauge's dot into its green band.</div></div>
   </div>
   <div class="row" style="margin-top:10px">
     <button class="btn" id="startBtn" style="flex:1">Start camera</button>
@@ -605,7 +605,10 @@ function liveLook(m){
 }
 function onOrient(e){ if(e.beta==null) return;
   // portrait: gamma = left/right roll, beta ≈ 90 when upright
-  tilt={beta:e.beta,gamma:e.gamma};
+  // screen roll from gravity: robust when the phone is held upright (raw gamma is unstable near beta=90)
+  const b=e.beta*Math.PI/180, g=e.gamma*Math.PI/180;
+  const roll=Math.atan2(Math.cos(b)*Math.sin(g), Math.sin(b))*180/Math.PI;
+  tilt={beta:e.beta,gamma:e.gamma,roll:Math.abs(e.beta)>30?roll:null};
   const up=e.beta-90;
   $('#level').textContent=`${Math.abs(e.gamma)<=4?'✓ level':'tilted '+Math.abs(e.gamma).toFixed(0)+'°'} · camera ${up>2?'aimed up '+up.toFixed(0)+'°':up<-2?'aimed down '+(-up).toFixed(0)+'°':'straight'}`;
 }
@@ -630,11 +633,137 @@ async function startLive(){
 function stopLive(){
   running=false; if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
   removeEventListener('deviceorientation',onOrient);
-  $('#startBtn').textContent='Start camera'; $('#snapBtn').disabled=true; $('#stage').classList.remove('match');
+  $('#startBtn').textContent='Start camera'; $('#snapBtn').disabled=true; cueShown=''; $('#stage').classList.remove('match');
   if(pose) pose.setOptions({smoothLandmarks:false});
 }
 $('#startBtn').onclick=()=>running?stopLive():startLive();
 
+/* ---------- live visual guidance (smoothed, glanceable) ---------- */
+const SM={}, IN={};
+function ema(k,v,a=.3){ if(v==null||!isFinite(v)){SM[k]=null;return null;} SM[k]=SM[k]==null?v:SM[k]+a*(v-SM[k]); return SM[k]; }
+function inBand(k,v,lo,hi){ if(v==null){IN[k]=false;return false;} const pad=(hi-lo)*.3; const ok=IN[k]?(v>=lo-pad&&v<=hi+pad):(v>=lo&&v<=hi); IN[k]=ok; return ok; }
+function resetSmooth(){for(const k in SM)delete SM[k];for(const k in IN)delete IN[k];}
+
+function liveState(look,m,tilt){
+  const st={look,ok:{},have:!!m};
+  if(tilt&&tilt.roll!=null){ const gm=ema('gam',tilt.roll,.4); st.gamma=gm; st.ok.level=inBand('lv',gm,-3,3); }
+  if(!m){ resetSmoothBody(); st.t=targetBox(look,null); return st; }
+  const g=look.t, full=look.crop==='full';
+  const b={x0:ema('bx0',m.body.x0),x1:ema('bx1',m.body.x1),y0:ema('by0',m.body.y0),y1:ema('by1',m.body.y1)};
+  st.body=b; st.t=targetBox(look,{body:b});
+  // distance: size vs her band (normalised so the band spans -0.5..0.5)
+  if(full && m.crop!=='full'){ st.size=1.6; IN.size=false; st.ok.size=false; st.feetCut=true; SM.size=null; }
+  else{
+    const S=full?g.height:g.scale, v=ema('size',full?m.height:m.scale);
+    if(S&&v!=null){ const w=Math.max(.02,S.hi-S.lo); st.size=(v-(S.lo+S.hi)/2)/w; st.ok.size=inBand('size',v,S.lo,S.hi); }
+  }
+  // aim: her box centre vs target box centre
+  const t=st.t;
+  if(t){
+    const hx=(b.x0+b.x1)/2, hy=(b.y0+b.y1)/2, tx=(t.x0+t.x1)/2, ty=(t.y0+t.y1)/2;
+    st.aim={dx:hx-tx,dy:hy-ty,hx,hy,tx,ty};
+    const tolx=Math.max(.04,g.cx?(g.cx.hi-g.cx.lo)/2:.05), toly=Math.max(.035,g.headroom?(g.headroom.hi-g.headroom.lo)/2:.04);
+    st.ok.aim=inBand('ax',st.aim.dx,-tolx,tolx) & inBand('ay',st.aim.dy,-toly,toly) ? true:false;
+  }
+  // phone height (standing full-length looks only): higher legRatio = lower phone
+  if(full && !(look.seated>=.5) && g.legRatio && m.legRatio!=null){
+    const v=ema('lr',m.legRatio), w=Math.max(.1,g.legRatio.hi-g.legRatio.lo);
+    st.height=-(v-(g.legRatio.lo+g.legRatio.hi)/2)/w;   // + = phone too high
+    st.ok.height=inBand('lr',v,g.legRatio.lo,g.legRatio.hi);
+  }
+  return st;
+}
+function resetSmoothBody(){for(const k of ['bx0','bx1','by0','by1','size','lr'])SM[k]=null;}
+
+const GREEN='#7fd49b', WHITE='rgba(255,255,255,.95)', ORANGE='#f0a35e';
+function outlinedText(ctx,txt,x,y,size,color,align='center'){
+  ctx.font=`700 ${size}px -apple-system,sans-serif`; ctx.textAlign=align; ctx.textBaseline='middle';
+  ctx.lineWidth=size/4; ctx.strokeStyle='rgba(0,0,0,.65)'; ctx.strokeText(txt,x,y); ctx.fillStyle=color; ctx.fillText(txt,x,y);
+}
+function arrow(ctx,x1,y1,x2,y2,w,color){
+  const a=Math.atan2(y2-y1,x2-x1), hl=w*3.2;
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  for(const [col,lw] of [['rgba(0,0,0,.55)',w+4],[color,w]]){
+    ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=lw;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2-Math.cos(a)*hl*.6,y2-Math.sin(a)*hl*.6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-hl*Math.cos(a-.45),y2-hl*Math.sin(a-.45)); ctx.lineTo(x2-hl*Math.cos(a+.45),y2-hl*Math.sin(a+.45)); ctx.closePath(); ctx.fill(); if(col!==color) ctx.stroke();
+  }
+  ctx.restore();
+}
+/* vertical gauge: band in the middle, dot = where you are, arrow = which way to go */
+function gauge(ctx,x,yTop,yBot,p,ok,title,upWord,downWord,U){
+  const mid=(yTop+yBot)/2, span=(yBot-yTop)/2, toY=v=>mid - clamp(v,-1.6,1.6)/1.6*span, bandH=span*(0.5/1.6)*2;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,.55)'; ctx.beginPath(); ctx.roundRect(x-U*1.1,yTop-U*.6,U*2.2,yBot-yTop+U*1.2,U*1.1); ctx.fill();
+  ctx.fillStyle=ok?'rgba(127,212,155,.9)':'rgba(127,212,155,.45)'; ctx.beginPath(); ctx.roundRect(x-U*.7,mid-bandH/2,U*1.4,bandH,U*.4); ctx.fill();
+  if(p!=null){
+    const y=toY(p); ctx.fillStyle=ok?GREEN:ORANGE; ctx.strokeStyle='#000'; ctx.lineWidth=U*.25;
+    ctx.beginPath(); ctx.arc(x,y,U*.85,0,7); ctx.fill(); ctx.stroke();
+    if(!ok){ // arrow from dot toward band, with the action word
+      const goUp=y>mid; const y2=goUp?mid+bandH/2+U*.3:mid-bandH/2-U*.3;
+      if(Math.abs(y2-y)>U*1.4) arrow(ctx,x,y+(goUp?-U:U),x,y2,U*.45,WHITE);
+      outlinedText(ctx,goUp?upWord:downWord,x+(x<U*10?U*1.8:-U*1.8),y,U*1.25,WHITE,x<U*10?'left':'right');
+    }
+  }
+  outlinedText(ctx,title,x,yTop-U*1.6,U*1.05,'rgba(255,255,255,.85)');
+  ctx.restore();
+}
+function drawLive(ctx,W,H,st,lm,matched){
+  const U=Math.max(10,W/34), look=st.look;
+  if(lm) drawSkeleton(ctx,lm,W,H,matched?'rgba(127,212,155,.55)':'rgba(232,178,106,.45)');
+  if(st.t){ // target box + ghost, her smoothed box
+    drawGhost(ctx,W,H,look,st.t,matched?GREEN:'#ffffff');
+    bracketBox(ctx,st.t,W,H,matched?'rgba(127,212,155,.95)':'rgba(255,255,255,.9)',true,null);
+    if(st.body) bracketBox(ctx,st.body,W,H,matched?'rgba(127,212,155,.95)':'rgba(240,163,94,.95)',false,null);
+  }
+  // aim ring + arrow toward her
+  if(st.aim){
+    const a=st.aim, tx=a.tx*W, ty=a.ty*H, hx=a.hx*W, hy=a.hy*H, R=U*2.4;
+    ctx.save(); ctx.lineWidth=U*.45; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.beginPath(); ctx.arc(tx,ty,R,0,7); ctx.stroke();
+    ctx.strokeStyle=st.ok.aim?GREEN:WHITE; ctx.lineWidth=U*.3; ctx.beginPath(); ctx.arc(tx,ty,R,0,7); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.fillStyle=st.ok.aim?GREEN:ORANGE; ctx.strokeStyle='#000'; ctx.lineWidth=U*.25; ctx.beginPath(); ctx.arc(hx,hy,U*.75,0,7); ctx.fill(); ctx.stroke(); ctx.restore();
+    if(!st.ok.aim){
+      const d=Math.hypot(hx-tx,hy-ty);
+      if(d>R*1.2){ const ux=(hx-tx)/d, uy=(hy-ty)/d, L=Math.min(d-U, R+U*6);
+        arrow(ctx,tx+ux*R,ty+uy*R,tx+ux*L,ty+uy*L,U*.6,WHITE);
+        outlinedText(ctx,'aim',tx,ty,U*1.2,WHITE);
+      }
+    } else outlinedText(ctx,'✓',tx,ty,U*1.8,GREEN);
+  }
+  // gauges
+  const yTop=H*.3, yBot=H*.66;
+  if(st.size!=null) gauge(ctx,W-U*2.2,yTop,yBot,st.size,st.ok.size,'distance', 'step in','step back',U);
+  if(st.height!=null) gauge(ctx,U*2.2,yTop,yBot,st.height,st.ok.height,'phone', 'raise','lower',U);
+  // level line
+  if(st.gamma!=null){
+    const cx=W/2, cy=U*3, L=U*5, an=-st.gamma*Math.PI/180;
+    ctx.save(); ctx.lineCap='round';
+    ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=U*.25; ctx.beginPath(); ctx.moveTo(cx-L*1.3,cy); ctx.lineTo(cx-L*1.05,cy); ctx.moveTo(cx+L*1.05,cy); ctx.lineTo(cx+L*1.3,cy); ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=U*.7; ctx.beginPath(); ctx.moveTo(cx-L*Math.cos(an),cy-L*Math.sin(an)); ctx.lineTo(cx+L*Math.cos(an),cy+L*Math.sin(an)); ctx.stroke();
+    ctx.strokeStyle=st.ok.level?GREEN:ORANGE; ctx.lineWidth=U*.4; ctx.beginPath(); ctx.moveTo(cx-L*Math.cos(an),cy-L*Math.sin(an)); ctx.lineTo(cx+L*Math.cos(an),cy+L*Math.sin(an)); ctx.stroke();
+    ctx.restore();
+  }
+}
+/* one calm headline: only changes after the same issue holds ~0.8 s, and stays up at least 1.5 s */
+let cueShown='', cueSince=0, cueCand='', cueCandN=0;
+function calmCue(txt){
+  const now=performance.now();
+  if(txt===cueShown){cueCandN=0;return cueShown;}
+  if(txt===cueCand) cueCandN++; else {cueCand=txt;cueCandN=1;}
+  if(!cueShown || (cueCandN>=7 && now-cueSince>1500) || (txt.startsWith('✓') && cueCandN>=2)){cueShown=txt;cueSince=now;cueCandN=0;}
+  return cueShown;
+}
+function headline(st){
+  if(!st.have) return 'Find her in the frame';
+  if(st.feetCut) return 'Step back: get her feet in';
+  if(st.ok.level===false) return 'Level the phone';
+  if(st.ok.size===false) return st.size<0?'Step in':'Step back';
+  if(st.ok.aim===false) return 'Aim toward her: follow the arrow';
+  if(st.ok.height===false) return st.height>0?'Lower the phone':'Raise the phone';
+  return '✓ Shoot now';
+}
+
+let lastLookId=null;
 async function loop(){
   if(!running) return;
   const v=$('#video'), oc=$('#overlay');
@@ -649,14 +778,15 @@ async function loop(){
       if(m && (frameN++%15===0)) lastLight=measureLight(v,v.videoWidth,v.videoHeight,m.box);
       if(m) Object.assign(m,lastLight);
       const look=m?liveLook(m):(wantLook==='auto'?lookById(autoId??1):lookById(wantLook));
-      const c=coach(m,look,tilt);
-      const good=m && !c.fixes.some(f=>f.s>=2) && c.fixes.length<=1;
+      if(look.id!==lastLookId){resetSmooth();lastLookId=look.id;}
+      const st=liveState(look,m,tilt);
+      const okVals=Object.values(st.ok);
+      const good=st.have && okVals.length>0 && okVals.every(Boolean);
       hold = good ? hold+1 : 0;
-      if(lm) drawSkeleton(ctx,lm,W,H,hold>3?'rgba(127,212,155,.7)':'rgba(232,178,106,.6)');
-      drawGuides(ctx,W,H,look,m,hold>3);
+      drawLive(ctx,W,H,st,lm,hold>3);
       $('#stage').classList.toggle('match',hold>3);
-      if(hold>3){ $('#cue').textContent='✓ That\'s her angle. Shoot now'; $('#cue2').textContent=(c.notes&&c.notes[0])||'Ask her to move naturally and fire a burst.'; }
-      else { $('#cue').textContent=c.fixes[0]?.t||'Almost there'; $('#cue2').textContent=(look?`Look ${look.id}: ${look.name}`:'')+(c.fixes[1]?(' · then '+c.fixes[1].t.toLowerCase()):''); }
+      $('#cue').textContent=calmCue(hold>3?'✓ Shoot now':headline(st));
+      $('#cue2').textContent=`Look ${look.id}: ${look.name}`;
     }catch(e){}
     busy=false;
   }
