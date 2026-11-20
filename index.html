@@ -56,6 +56,15 @@ textarea{width:100%;min-height:90px;background:#0b0a09;color:var(--tx);border:1p
 .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none}
 .score{font-size:40px;font-weight:800}
 #checkView{width:100%;border-radius:12px;display:none;margin-bottom:10px}
+.look{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.look:first-child{border-top:0}
+.look>canvas{width:66px;height:88px;border-radius:8px;flex:none}
+.look .nm{font-weight:700}
+.look .mem{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.look .mem canvas{width:30px;height:40px;border-radius:4px}
+#cropSeg{overflow-x:auto}
+#cropSeg button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:58px;font-size:11px;line-height:1.2}
+#cropSeg canvas{width:30px;height:40px;border-radius:4px}
 .note{border-left:3px solid var(--warn);padding:8px 10px;background:#24201b;border-radius:8px;font-size:13px;margin-top:10px}
 </style>
 </head>
@@ -84,6 +93,12 @@ textarea{width:100%;min-height:90px;background:#0b0a09;color:var(--tx);border:1p
     <div class="thumbs" id="thumbs"></div>
   </div>
   <div class="card">
+    <h2>Her looks</h2>
+    <div class="mut">Her photos grouped into distinct poses and angles. Each look gets its own target box and ghost pose in Live coach. Pick how many looks, or leave it on Auto.</div>
+    <div class="seg" id="kSeg"></div>
+    <div id="looks"></div>
+  </div>
+  <div class="card">
     <h2>What she likes <span class="pill" id="srcPill"></span></h2>
     <ul class="traits" id="traits"></ul>
   </div>
@@ -104,7 +119,7 @@ textarea{width:100%;min-height:90px;background:#0b0a09;color:var(--tx);border:1p
     <video id="video" playsinline muted autoplay></video>
     <canvas id="overlay"></canvas>
     <div id="level">level —</div>
-    <div id="hud"><div id="cue">Tap Start</div><div id="cue2">Move until the solid box fills the dashed box</div></div>
+    <div id="hud"><div id="cue">Tap Start</div><div id="cue2">Pick a look above, or Auto. Fit the solid box into the dashed one.</div></div>
   </div>
   <div class="row" style="margin-top:10px">
     <button class="btn" id="startBtn" style="flex:1">Start camera</button>
@@ -135,7 +150,7 @@ const $ = s => document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 /* ---------- starter profile (from 12 Instagram screenshots) ---------- */
-const STARTER = /*STARTER*/{"source": "starter: 12 Instagram screenshots", "n": 11, "created": "2026-11-18", "crops": {"full": 5, "three": 4, "half": 2}, "groups": {"full": {"scale": {"med": 0.197, "lo": 0.167, "hi": 0.227, "n": 5}, "height": {"med": 0.658, "lo": 0.608, "hi": 0.708, "n": 5}, "cx": {"med": 0.529, "lo": 0.461, "hi": 0.589, "n": 5}, "headroom": {"med": 0.282, "lo": 0.242, "hi": 0.322, "n": 5}, "ground": {"med": 0.063, "lo": 0.018, "hi": 0.093, "n": 5}, "legRatio": {"med": 1.507, "lo": 1.387, "hi": 1.627, "n": 5}, "turn": {"med": 0.074, "lo": -0.046, "hi": 0.194, "n": 5}}, "three": {"scale": {"med": 0.258, "lo": 0.228, "hi": 0.288, "n": 4}, "cx": {"med": 0.504, "lo": 0.444, "hi": 0.564, "n": 4}, "headroom": {"med": 0.258, "lo": 0.218, "hi": 0.298, "n": 4}, "turn": {"med": 0.5355, "lo": 0.3692, "hi": 0.6833, "n": 4}}, "half": {"scale": {"med": 0.2585, "lo": 0.2135, "hi": 0.3035, "n": 2}, "cx": {"med": 0.5715, "lo": 0.4815, "hi": 0.6615, "n": 2}, "headroom": {"med": 0.2735, "lo": 0.2135, "hi": 0.3335, "n": 2}, "turn": {"med": 0.638, "lo": 0.458, "hi": 0.818, "n": 2}}}, "light": {"lum": {"med": 0.326, "lo": 0.172, "hi": 0.406, "n": 11}, "warmth": {"med": 0.065, "lo": 0.035, "hi": 0.106, "n": 11}, "pop": {"med": 0.084, "lo": -0.003, "hi": 0.167, "n": 11}}}/*END*/;
+const STARTER = /*STARTER*/{"source":"starter: 12 Instagram screenshots","n":11,"created":"2026-11-20","crops":{"full":5,"three":4,"half":2},"groups":{"full":{"scale":{"med":0.1972,"lo":0.1672,"hi":0.2272,"n":5},"height":{"med":0.6581,"lo":0.6081,"hi":0.7081,"n":5},"cx":{"med":0.529,"lo":0.4607,"hi":0.589,"n":5},"headroom":{"med":0.2816,"lo":0.2416,"hi":0.3216,"n":5},"ground":{"med":0.0631,"lo":0.0182,"hi":0.0931,"n":5},"legRatio":{"med":1.5066,"lo":1.3866,"hi":1.6266,"n":5},"turn":{"med":0.0741,"lo":-0.0459,"hi":0.1941,"n":5}},"three":{"scale":{"med":0.2577,"lo":0.2277,"hi":0.2877,"n":4},"cx":{"med":0.5042,"lo":0.4442,"hi":0.5642,"n":4},"headroom":{"med":0.2581,"lo":0.2181,"hi":0.2981,"n":4},"turn":{"med":0.5351,"lo":0.3688,"hi":0.6828,"n":4}},"half":{"scale":{"med":0.2583,"lo":0.2133,"hi":0.3033,"n":2},"cx":{"med":0.5717,"lo":0.4817,"hi":0.6617,"n":2},"headroom":{"med":0.2736,"lo":0.2136,"hi":0.3336,"n":2},"turn":{"med":0.6378,"lo":0.4578,"hi":0.8178,"n":2}}},"light":{"lum":{"med":0.3257,"lo":0.1719,"hi":0.4057,"n":11},"warmth":{"med":0.0649,"lo":0.0349,"hi":0.1061,"n":11},"pop":{"med":0.0842,"lo":-0.0032,"hi":0.1669,"n":11}},"k":"auto","items":[{"crop":"half","scale":0.2677,"height":null,"cx":0.5439,"headroom":0.2304,"ground":null,"legRatio":null,"turn":0.6947,"handUp":1,"lum":0.4169,"warmth":0.1207,"pop":0.2675,"lm":[[0.467,0.296,1],[0.48,0.277,1],[0.491,0.276,1],[0.502,0.275,1],[0.461,0.28,1],[0.457,0.28,1],[0.453,0.281,0.99],[0.537,0.28,1],[0.468,0.29,0.99],[0.496,0.316,1],[0.464,0.319,1],[0.675,0.383,1],[0.427,0.386,1],[0.721,0.529,1],[0.31,0.457,0.99],[0.625,0.594,0.99],[0.4,0.332,1],[0.596,0.625,0.97],[0.41,0.291,0.98],[0.578,0.603,0.97],[0.418,0.288,0.98],[0.584,0.594,0.97],[0.426,0.303,0.98],[0.599,0.659,1],[0.475,0.645,1],[0.627,0.877,0.13],[0.482,0.863,0.38],[0.632,1.05,0.01],[0.495,1.029,0.04],[0.631,1.07,0.02],[0.506,1.05,0.02],[0.631,1.128,0.01],[0.484,1.109,0.02]]},{"crop":"full","scale":0.2189,"height":0.675,"cx":0.6022,"headroom":0.3068,"ground":0.0182,"legRatio":1.4391,"turn":0.3456,"handUp":1,"lum":0.2793,"warmth":-0.0081,"pop":0.0748,"lm":[[0.513,0.344,1],[0.515,0.328,1],[0.518,0.327,1],[0.521,0.326,1],[0.511,0.329,1],[0.512,0.328,1],[0.512,0.328,1],[0.549,0.327,1],[0.528,0.329,1],[0.531,0.356,1],[0.525,0.356,1],[0.641,0.387,1],[0.541,0.399,1],[0.701,0.506,1],[0.437,0.432,0.94],[0.701,0.622,1],[0.454,0.333,0.94],[0.705,0.655,0.98],[0.466,0.308,0.83],[0.681,0.658,0.98],[0.477,0.305,0.81],[0.675,0.649,0.98],[0.478,0.313,0.78],[0.636,0.613,1],[0.591,0.61,1],[0.616,0.781,0.95],[0.607,0.769,0.43],[0.62,0.927,0.88],[0.614,0.908,0.45],[0.638,0.948,0.86],[0.63,0.927,0.57],[0.556,0.982,0.84],[0.537,0.963,0.63]]},{"crop":"half","scale":0.2488,"height":null,"cx":0.5994,"headroom":0.3168,"ground":null,"legRatio":null,"turn":0.5809,"handUp":0,"lum":0.1178,"warmth":0.079,"pop":0.1163,"lm":[[0.523,0.387,1],[0.54,0.369,1],[0.55,0.368,1],[0.561,0.367,1],[0.522,0.371,1],[0.519,0.371,1],[0.516,0.372,1],[0.592,0.375,1],[0.532,0.379,1],[0.549,0.406,1],[0.525,0.407,1],[0.699,0.478,1],[0.507,0.483,1],[0.725,0.623,0.99],[0.446,0.59,0.94],[0.765,0.758,0.98],[0.317,0.627,0.97],[0.784,0.791,0.96],[0.274,0.635,0.95],[0.773,0.8,0.96],[0.272,0.626,0.96],[0.76,0.786,0.97],[0.287,0.624,0.96],[0.647,0.731,1],[0.544,0.728,1],[0.614,0.93,0.39],[0.548,0.924,0.49],[0.606,1.073,0.2],[0.546,1.069,0.2],[0.6,1.091,0.21],[0.55,1.086,0.14],[0.612,1.127,0.19],[0.549,1.132,0.19]]},{"crop":"three","scale":0.2356,"height":null,"cx":0.5684,"headroom":0.2823,"ground":null,"legRatio":null,"turn":0.1806,"handUp":0,"lum":0.1231,"warmth":0.0099,"pop":0.1799,"lm":[[0.528,0.339,1],[0.549,0.326,1],[0.559,0.326,1],[0.569,0.327,1],[0.529,0.325,1],[0.524,0.325,1],[0.52,0.325,1],[0.589,0.337,1],[0.534,0.331,1],[0.542,0.357,1],[0.52,0.356,1],[0.55,0.412,1],[0.606,0.417,1],[0.478,0.54,0.99],[0.55,0.532,0.02],[0.341,0.599,0.95],[0.482,0.601,0.04],[0.304,0.622,0.92],[0.448,0.622,0.05],[0.296,0.612,0.92],[0.449,0.615,0.05],[0.314,0.608,0.9],[0.465,0.616,0.05],[0.531,0.65,1],[0.587,0.65,0.99],[0.525,0.832,0.63],[0.576,0.825,0.07],[0.567,0.984,0.45],[0.603,0.978,0.1],[0.598,1.021,0.84],[0.625,1.011,0.33],[0.514,1.025,0.47],[0.53,1.007,0.15]]},{"crop":"full","scale":0.1972,"height":0.659,"cx":0.5428,"headroom":0.2779,"ground":0.0631,"legRatio":1.5066,"turn":0.0283,"handUp":0,"lum":0.5066,"warmth":0.0208,"pop":-0.1782,"lm":[[0.495,0.326,1],[0.505,0.311,1],[0.507,0.311,1],[0.508,0.311,1],[0.505,0.311,1],[0.506,0.31,1],[0.508,0.31,1],[0.527,0.316,1],[0.527,0.314,1],[0.502,0.338,1],[0.501,0.337,1],[0.558,0.392,1],[0.552,0.389,1],[0.548,0.512,0.98],[0.533,0.499,0.04],[0.463,0.538,0.92],[0.509,0.57,0.05],[0.446,0.546,0.86],[0.486,0.578,0.06],[0.448,0.536,0.86],[0.5,0.582,0.06],[0.458,0.533,0.82],[0.503,0.577,0.06],[0.54,0.589,1],[0.522,0.586,1],[0.542,0.738,0.95],[0.491,0.732,0.59],[0.537,0.899,0.97],[0.437,0.87,0.83],[0.54,0.925,0.92],[0.451,0.897,0.77],[0.464,0.937,0.96],[0.366,0.917,0.87]]},{"crop":"full","scale":0.1628,"height":0.5777,"cx":0.529,"headroom":0.2816,"ground":0.1406,"legRatio":1.6245,"turn":0.0741,"handUp":0,"lum":0.3708,"warmth":0.0491,"pop":0.1538,"lm":[[0.498,0.321,1],[0.512,0.309,1],[0.518,0.309,1],[0.525,0.309,1],[0.499,0.308,1],[0.497,0.307,1],[0.495,0.306,1],[0.545,0.315,1],[0.51,0.31,1],[0.509,0.332,1],[0.496,0.331,1],[0.539,0.373,1],[0.523,0.373,1],[0.556,0.473,0.97],[0.506,0.47,0.03],[0.489,0.467,0.88],[0.452,0.484,0.11],[0.479,0.454,0.84],[0.439,0.496,0.14],[0.474,0.446,0.84],[0.432,0.483,0.15],[0.476,0.447,0.81],[0.443,0.484,0.15],[0.514,0.535,1],[0.54,0.536,1],[0.487,0.681,1],[0.555,0.667,0.88],[0.473,0.818,0.99],[0.561,0.782,0.95],[0.483,0.84,1],[0.573,0.804,0.97],[0.408,0.859,0.97],[0.503,0.802,0.91]]},{"crop":"full","scale":0.2017,"height":0.6535,"cx":0.4138,"headroom":0.3442,"ground":0.0023,"legRatio":1.3967,"turn":0.1548,"handUp":0,"lum":0.389,"warmth":0.2585,"pop":-0.1196,"lm":[[0.38,0.401,1],[0.395,0.39,1],[0.403,0.39,1],[0.41,0.391,1],[0.379,0.389,1],[0.375,0.389,1],[0.371,0.389,1],[0.426,0.397,1],[0.379,0.393,1],[0.394,0.417,1],[0.374,0.415,1],[0.386,0.482,1],[0.426,0.472,1],[0.371,0.601,0.97],[0.419,0.578,0.01],[0.304,0.66,0.89],[0.376,0.649,0.01],[0.293,0.675,0.83],[0.368,0.662,0.02],[0.292,0.668,0.83],[0.364,0.66,0.02],[0.3,0.665,0.78],[0.365,0.658,0.02],[0.402,0.682,1],[0.44,0.675,0.99],[0.38,0.825,0.74],[0.427,0.809,0.14],[0.414,0.961,0.79],[0.46,0.942,0.15],[0.451,1.002,0.87],[0.48,0.965,0.3],[0.357,0.998,0.78],[0.406,0.971,0.23]]},{"crop":"three","scale":0.2475,"height":null,"cx":0.4776,"headroom":0.234,"ground":null,"legRatio":null,"turn":0.6386,"handUp":0,"lum":0.1586,"warmth":0.0548,"pop":0.0609,"lm":[[0.451,0.304,1],[0.473,0.283,1],[0.487,0.282,1],[0.498,0.282,1],[0.44,0.285,1],[0.433,0.285,1],[0.425,0.286,1],[0.52,0.288,1],[0.427,0.293,1],[0.476,0.324,1],[0.438,0.324,1],[0.602,0.407,1],[0.393,0.385,1],[0.616,0.547,0.96],[0.368,0.515,0.4],[0.506,0.569,0.77],[0.349,0.532,0.35],[0.472,0.578,0.63],[0.346,0.541,0.35],[0.47,0.557,0.64],[0.339,0.525,0.35],[0.476,0.553,0.62],[0.348,0.524,0.34],[0.521,0.65,1],[0.394,0.638,0.99],[0.51,0.846,0.45],[0.412,0.837,0.59],[0.497,0.997,0.24],[0.418,0.994,0.42],[0.491,1.023,0.25],[0.424,1.015,0.34],[0.509,1.06,0.22],[0.408,1.056,0.33]]},{"crop":"three","scale":0.2679,"height":null,"cx":0.4843,"headroom":0.3145,"ground":null,"legRatio":null,"turn":0.4315,"handUp":0,"lum":0.3257,"warmth":0.1082,"pop":0.2348,"lm":[[0.428,0.361,1],[0.436,0.34,1],[0.445,0.336,1],[0.455,0.332,1],[0.417,0.345,1],[0.414,0.346,1],[0.411,0.347,1],[0.482,0.327,1],[0.423,0.346,1],[0.458,0.372,1],[0.43,0.378,1],[0.579,0.417,1],[0.425,0.427,1],[0.613,0.569,1],[0.413,0.555,0.46],[0.48,0.599,0.99],[0.371,0.639,0.61],[0.439,0.618,0.98],[0.357,0.67,0.59],[0.426,0.603,0.98],[0.356,0.661,0.59],[0.437,0.597,0.97],[0.37,0.65,0.6],[0.508,0.694,1],[0.426,0.687,0.99],[0.474,0.907,0.57],[0.457,0.889,0.34],[0.507,1.078,0.2],[0.466,1.052,0.15],[0.517,1.105,0.26],[0.476,1.076,0.17],[0.478,1.133,0.14],[0.449,1.114,0.14]]},{"crop":"three","scale":0.3178,"height":null,"cx":0.5241,"headroom":0.2135,"ground":null,"legRatio":null,"turn":0.8155,"handUp":1,"lum":0.5205,"warmth":0.0649,"pop":-0.0674,"lm":[[0.59,0.322,1],[0.624,0.297,1],[0.644,0.295,1],[0.661,0.294,1],[0.577,0.3,1],[0.565,0.302,1],[0.554,0.303,1],[0.688,0.306,1],[0.551,0.318,1],[0.627,0.355,1],[0.571,0.354,1],[0.806,0.486,1],[0.464,0.447,0.99],[0.844,0.696,0.99],[0.315,0.627,0.96],[0.874,0.906,0.9],[0.435,0.423,0.98],[0.92,0.942,0.79],[0.443,0.357,0.96],[0.903,0.951,0.82],[0.446,0.342,0.95],[0.877,0.941,0.87],[0.452,0.361,0.94],[0.48,0.833,1],[0.346,0.736,1],[0.127,0.966,0.59],[0.003,0.827,0.76],[0.015,0.924,0.02],[-0.069,0.867,0.05],[0.031,0.918,0.05],[-0.053,0.881,0.06],[-0.119,0.927,0.02],[-0.183,0.894,0.05]]},{"crop":"full","scale":0.1903,"height":0.6581,"cx":0.4607,"headroom":0.2737,"ground":0.0681,"legRatio":1.6281,"turn":0.0292,"handUp":0,"lum":0.1853,"warmth":0.104,"pop":0.0842,"lm":[[0.456,0.318,1],[0.472,0.309,1],[0.478,0.311,1],[0.485,0.313,1],[0.456,0.306,1],[0.452,0.305,1],[0.447,0.305,1],[0.496,0.325,1],[0.448,0.312,1],[0.463,0.335,1],[0.443,0.331,1],[0.462,0.377,1],[0.469,0.378,1],[0.462,0.482,0.99],[0.454,0.474,0.02],[0.351,0.475,0.97],[0.4,0.511,0.03],[0.325,0.478,0.95],[0.386,0.524,0.06],[0.322,0.467,0.95],[0.383,0.518,0.06],[0.331,0.466,0.92],[0.387,0.515,0.06],[0.443,0.569,1],[0.469,0.566,1],[0.454,0.736,0.99],[0.47,0.73,0.51],[0.518,0.885,0.98],[0.499,0.87,0.72],[0.554,0.903,0.97],[0.518,0.888,0.78],[0.466,0.932,0.98],[0.427,0.898,0.81]]}],"looks":[{"crop":"full","n":4,"t":{"scale":{"med":0.1937,"lo":0.1637,"hi":0.2237,"n":4},"height":{"med":0.6558,"lo":0.6058,"hi":0.7058,"n":4},"cx":{"med":0.4949,"lo":0.4349,"hi":0.5549,"n":4},"headroom":{"med":0.2797,"lo":0.2397,"hi":0.3197,"n":4},"ground":{"med":0.0656,"lo":0.0356,"hi":0.0956,"n":4},"legRatio":{"med":1.5655,"lo":1.4455,"hi":1.6856,"n":4},"turn":{"med":0.0517,"lo":-0.0683,"hi":0.1716,"n":4}},"handUp":0,"f":[1.6,0.352,0.2799,0.3925,0.0931,0,0.2744],"pose":[[0.456,0.318,1],[0.472,0.309,1],[0.478,0.311,1],[0.485,0.313,1],[0.456,0.306,1],[0.452,0.305,1],[0.447,0.305,1],[0.496,0.325,1],[0.448,0.312,1],[0.463,0.335,1],[0.443,0.331,1],[0.462,0.377,1],[0.469,0.378,1],[0.462,0.482,0.99],[0.454,0.474,0.02],[0.351,0.475,0.97],[0.4,0.511,0.03],[0.325,0.478,0.95],[0.386,0.524,0.06],[0.322,0.467,0.95],[0.383,0.518,0.06],[0.331,0.466,0.92],[0.387,0.515,0.06],[0.443,0.569,1],[0.469,0.566,1],[0.454,0.736,0.99],[0.47,0.73,0.51],[0.518,0.885,0.98],[0.499,0.87,0.72],[0.554,0.903,0.97],[0.518,0.888,0.78],[0.466,0.932,0.98],[0.427,0.898,0.81]],"members":[4,5,6,10],"name":"Full length \u00b7 side-on / looking back","id":1},{"crop":"three","n":4,"t":{"scale":{"med":0.2475,"lo":0.2025,"hi":0.2925,"n":3},"cx":{"med":0.4843,"lo":0.3943,"hi":0.5743,"n":3},"headroom":{"med":0.2823,"lo":0.2223,"hi":0.3423,"n":3},"turn":{"med":0.4315,"lo":0.2515,"hi":0.6115,"n":3}},"handUp":0,"f":[0.6,0.5998,0.3486,0.3825,0.5953,0,0.25],"pose":[[0.428,0.361,1],[0.436,0.34,1],[0.445,0.336,1],[0.455,0.332,1],[0.417,0.345,1],[0.414,0.346,1],[0.411,0.347,1],[0.482,0.327,1],[0.423,0.346,1],[0.458,0.372,1],[0.43,0.378,1],[0.579,0.417,1],[0.425,0.427,1],[0.613,0.569,1],[0.413,0.555,0.46],[0.48,0.599,0.99],[0.371,0.639,0.61],[0.439,0.618,0.98],[0.357,0.67,0.59],[0.426,0.603,0.98],[0.356,0.661,0.59],[0.437,0.597,0.97],[0.37,0.65,0.6],[0.508,0.694,1],[0.426,0.687,0.99],[0.474,0.907,0.57],[0.457,0.889,0.34],[0.507,1.078,0.2],[0.466,1.052,0.15],[0.517,1.105,0.26],[0.476,1.076,0.17],[0.478,1.133,0.14],[0.449,1.114,0.14]],"members":[2,3,7,8],"name":"Below knee \u00b7 three-quarter","id":2},{"crop":"half","n":2,"t":{"scale":{"med":0.2677,"lo":0.2227,"hi":0.3127,"n":1},"cx":{"med":0.5439,"lo":0.4539,"hi":0.6339,"n":1},"headroom":{"med":0.2304,"lo":0.1704,"hi":0.2904,"n":1},"turn":{"med":0.6947,"lo":0.5147,"hi":0.8747,"n":1}},"handUp":1,"f":[0.4,0.771,0.351,0.2959,0.9816,0.9,0.25],"pose":[[0.467,0.296,1],[0.48,0.277,1],[0.491,0.276,1],[0.502,0.275,1],[0.461,0.28,1],[0.457,0.28,1],[0.453,0.281,0.99],[0.537,0.28,1],[0.468,0.29,0.99],[0.496,0.316,1],[0.464,0.319,1],[0.675,0.383,1],[0.427,0.386,1],[0.721,0.529,1],[0.31,0.457,0.99],[0.625,0.594,0.99],[0.4,0.332,1],[0.596,0.625,0.97],[0.41,0.291,0.98],[0.578,0.603,0.97],[0.418,0.288,0.98],[0.584,0.594,0.97],[0.426,0.303,0.98],[0.599,0.659,1],[0.475,0.645,1],[0.627,0.877,0.13],[0.482,0.863,0.38],[0.632,1.05,0.01],[0.495,1.029,0.04],[0.631,1.07,0.02],[0.506,1.05,0.02],[0.631,1.128,0.01],[0.484,1.109,0.02]],"members":[0,9],"name":"Mid-thigh \u00b7 three-quarter \u00b7 hand in hair","id":3},{"crop":"full","n":1,"t":{"scale":{"med":0.2189,"lo":0.1739,"hi":0.2639,"n":1},"height":{"med":0.675,"lo":0.6,"hi":0.75,"n":1},"cx":{"med":0.6022,"lo":0.5122,"hi":0.6922,"n":1},"headroom":{"med":0.3068,"lo":0.2468,"hi":0.3668,"n":1},"ground":{"med":0.0182,"lo":-0.0268,"hi":0.0632,"n":1},"legRatio":{"med":1.4391,"lo":1.2591,"hi":1.6191,"n":1},"turn":{"med":0.3456,"lo":0.1656,"hi":0.5256,"n":1}},"handUp":1,"f":[1.6,0.4756,0.4533,0.4091,0.4493,0.9,0.2119],"pose":[[0.513,0.344,1],[0.515,0.328,1],[0.518,0.327,1],[0.521,0.326,1],[0.511,0.329,1],[0.512,0.328,1],[0.512,0.328,1],[0.549,0.327,1],[0.528,0.329,1],[0.531,0.356,1],[0.525,0.356,1],[0.641,0.387,1],[0.541,0.399,1],[0.701,0.506,1],[0.437,0.432,0.94],[0.701,0.622,1],[0.454,0.333,0.94],[0.705,0.655,0.98],[0.466,0.308,0.83],[0.681,0.658,0.98],[0.477,0.305,0.81],[0.675,0.649,0.98],[0.478,0.313,0.78],[0.636,0.613,1],[0.591,0.61,1],[0.616,0.781,0.95],[0.607,0.769,0.43],[0.62,0.927,0.88],[0.614,0.908,0.45],[0.638,0.948,0.86],[0.63,0.927,0.57],[0.556,0.982,0.84],[0.537,0.963,0.63]],"members":[1],"name":"Full length \u00b7 side-on / looking back \u00b7 hand in hair","id":4}]}/*END*/;
 
 /* ---------- storage ---------- */
 function save(p){try{localStorage.setItem('herAngleProfile',JSON.stringify(p))}catch(e){}}
@@ -232,7 +247,9 @@ function metrics(lm){
     ground: feetIn ? 1-footY : null,       // space below feet
     legRatio: feetIn ? (ank-hip.y)/torsoY : null, // >: lower camera
     turn: shW/(torsoY*4),                  // shoulder width vs torso: low = turned / looking back
+    handUp: ([15,16].some(i=>lm[i].v>0.5 && lm[i].y < sh.y+0.02)) ? 1 : 0, // hand at hair / face
   };
+  m.lm = lm.map(l=>[+l.x.toFixed(3),+l.y.toFixed(3),+(l.v??1).toFixed(2)]);
   const xs=lm.filter((l,i)=>i>10&&l.v>0.5).map(l=>l.x);
   const bx0=Math.min(...xs),bx1=Math.max(...xs),bp=(bx1-bx0)*.12+.02;
   m.body={x0:clamp(bx0-bp,0,1),x1:clamp(bx1+bp,0,1),y0:clamp(headTop,0,1),y1:clamp(footY??1,0,1)};
@@ -243,6 +260,7 @@ function metrics(lm){
 /* ---------- build profile ---------- */
 const KEYS=['scale','height','cx','headroom','ground','legRatio','turn'];
 const MINTOL={scale:.03,height:.05,cx:.06,headroom:.04,ground:.03,legRatio:.12,turn:.12,lum:.08,warmth:.03,pop:.04};
+const SHORT={full:'Full length',three:'Below knee',half:'Mid-thigh'};
 function stat(vals,k){
   vals=vals.filter(v=>v!=null&&isFinite(v)).sort((a,b)=>a-b);
   if(!vals.length) return null;
@@ -250,14 +268,93 @@ function stat(vals,k){
   const med=q(.5), t=MINTOL[k]*(vals.length<4?1.5:1);
   return {med:+med.toFixed(4), lo:+Math.min(q(.25),med-t).toFixed(4), hi:+Math.max(q(.75),med+t).toFixed(4), n:vals.length};
 }
-function buildProfile(items,source){
-  const p={source, n:items.length, created:new Date().toISOString().slice(0,10), crops:{}, groups:{}, light:{}};
+function statsFor(items){const t={};for(const k of KEYS){const s=stat(items.map(m=>m[k]),k);if(s)t[k]=s;}return t;}
+
+/* pose + framing feature vector used to cluster photos into looks */
+function feats(m){
+  return [
+    ({full:1,three:.5,half:0}[m.crop])*1.6,                 // how much of her is in frame
+    clamp((m.scale-.1)/.25,0,1.5)*1.0,                      // distance
+    clamp((m.cx-.3)/.4,0,1)*0.6,                            // left/right placement
+    clamp(m.headroom/.45,0,1)*0.6,                          // vertical placement
+    clamp(m.turn,0,1.2)*1.3,                                // facing vs turned / looking back
+    (m.handUp?1:0)*0.9,                                     // hand in hair
+    (m.legRatio!=null?clamp((m.legRatio-1.1)/0.8,0,1):0.5)*0.5 // camera height
+  ];
+}
+const dist=(a,b)=>Math.sqrt(a.reduce((s,v,i)=>s+(v-b[i])**2,0));
+function kmeans(X,k,seed){
+  let r=seed||7; const rnd=()=>((r=(r*16807)%2147483647)/2147483647);
+  const C=[X[Math.floor(rnd()*X.length)]];
+  while(C.length<k){const d=X.map(x=>Math.min(...C.map(c=>dist(x,c)))**2), t=d.reduce((a,b)=>a+b,0)*rnd(); let acc=0,i=0; for(;i<X.length-1;i++){acc+=d[i]; if(acc>=t) break;} C.push(X[i]);}
+  let L=new Array(X.length).fill(0);
+  for(let it=0;it<50;it++){
+    const NL=X.map(x=>{let bi=0,bd=1e9;C.forEach((c,j)=>{const d=dist(x,c);if(d<bd){bd=d;bi=j}});return bi;});
+    for(let j=0;j<k;j++){const pts=X.filter((_,i)=>NL[i]===j); if(pts.length) C[j]=pts[0].map((_,d)=>pts.reduce((s,p)=>s+p[d],0)/pts.length);}
+    if(NL.every((v,i)=>v===L[i])&&it>0) break; L=NL;
+  }
+  const sse=X.reduce((s,x,i)=>s+dist(x,C[L[i]])**2,0);
+  return {L,C,sse};
+}
+function silhouette(X,L,k){
+  let tot=0;
+  for(let i=0;i<X.length;i++){
+    const own=X.filter((_,j)=>j!==i&&L[j]===L[i]); if(!own.length) continue;
+    const a=own.reduce((s,x)=>s+dist(X[i],x),0)/own.length;
+    let b=1e9; for(let c=0;c<k;c++){ if(c===L[i]) continue; const o=X.filter((_,j)=>L[j]===c); if(o.length) b=Math.min(b,o.reduce((s,x)=>s+dist(X[i],x),0)/o.length); }
+    tot+=(b-a)/Math.max(a,b);
+  }
+  return tot/X.length;
+}
+function cluster(items,kWant){
+  const X=items.map(feats), N=X.length;
+  const best=k=>{let b=null;for(let s=1;s<=8;s++){const r=kmeans(X,k,s*7919);if(!b||r.sse<b.sse)b=r;}return b;};
+  if(kWant&&kWant!=='auto') return best(Math.min(+kWant,N));
+  if(N<4) return best(1);
+  let bestR=best(1), bestS=0.18;               // need real structure before splitting
+  for(let k=2;k<=Math.min(6,Math.floor(N/2));k++){const r=best(k), sc=silhouette(X,r.L,k); if(sc>bestS){bestS=sc;bestR=r;}}
+  return bestR;
+}
+function nameLook(crop,t,handUp){
+  const parts=[SHORT[crop]];
+  const tu=t.turn?.med;
+  if(tu!=null) parts.push(tu<0.4?'side-on / looking back':tu<0.7?'three-quarter':'facing camera');
+  if(handUp>=0.5) parts.push('hand in hair');
+  if(crop==='full'&&t.legRatio&&t.legRatio.med>1.6) parts.push('low angle');
+  return parts.join(' · ');
+}
+function makeLooks(items,kWant){
+  const {L,C}=cluster(items,kWant);
+  const looks=[];
+  C.forEach((c,j)=>{
+    const mem=items.map((m,i)=>[m,i]).filter(([_,i])=>L[i]===j); if(!mem.length) return;
+    const ms=mem.map(x=>x[0]);
+    const cnt={}; ms.forEach(m=>cnt[m.crop]=(cnt[m.crop]||0)+1);
+    const crop=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0][0];
+    const t=statsFor(ms.filter(m=>m.crop===crop));
+    const hu=ms.reduce((s,m)=>s+(m.handUp||0),0)/ms.length;
+    const F=ms.map(feats); let mi=0,md=1e9; F.forEach((f,i)=>{const d=F.reduce((s,g)=>s+dist(f,g),0); if(d<md){md=d;mi=i}});
+    looks.push({crop,n:ms.length,t,handUp:+hu.toFixed(2),f:c.map(v=>+v.toFixed(4)),pose:ms[mi].lm||null,members:mem.map(x=>x[1]),name:nameLook(crop,t,hu)});
+  });
+  looks.sort((a,b)=>b.n-a.n); looks.forEach((l,i)=>l.id=i+1);
+  return looks;
+}
+function compactItem(m){const o={};for(const k of ['crop','scale','height','cx','headroom','ground','legRatio','turn','handUp','lum','warmth','pop','lm'])o[k]=typeof m[k]==='number'?+m[k].toFixed(4):m[k];return o;}
+function buildProfile(items,source,kWant){
+  const p={source, n:items.length, created:new Date().toISOString().slice(0,10), crops:{}, groups:{}, light:{}, k:kWant||'auto'};
   for(const c of ['full','three','half']){
     const g=items.filter(m=>m.crop===c); if(!g.length) continue;
-    p.crops[c]=g.length; p.groups[c]={};
-    for(const k of KEYS){const s=stat(g.map(m=>m[k]),k); if(s) p.groups[c][k]=s;}
+    p.crops[c]=g.length; p.groups[c]=statsFor(g);
   }
   for(const k of ['lum','warmth','pop']) p.light[k]=stat(items.map(m=>m[k]),k);
+  p.items=items.map(compactItem);
+  p.looks=makeLooks(p.items,p.k);
+  return p;
+}
+function relook(p,kWant){ if(!p.items) return p; p.k=kWant; p.looks=makeLooks(p.items,kWant); return p; }
+function ensureLooks(p){
+  if(!p||p.looks) return p;
+  p.looks=Object.entries(p.crops).sort((a,b)=>b[1]-a[1]).map(([c,n],i)=>({id:i+1,crop:c,n,t:p.groups[c],handUp:0,f:null,pose:null,name:SHORT[c]}));
   return p;
 }
 
@@ -285,25 +382,26 @@ function describe(p){
 }
 
 /* ---------- compare a shot to profile ---------- */
-function targetGroup(m,want){
-  const g=PROFILE.groups;
-  if(want && g[want]) return want;
-  if(m && g[m.crop]) return m.crop;
-  return Object.entries(PROFILE.crops).sort((a,b)=>b[1]-a[1])[0][0];
+function lookById(id){return PROFILE.looks.find(l=>l.id===id)||PROFILE.looks[0];}
+function nearestLook(m){
+  const L=PROFILE.looks; if(!m) return L[0];
+  if(L.every(l=>l.f)){const f=feats(m); let b=L[0],bd=1e9; for(const l of L){const d=dist(f,l.f); if(d<bd){bd=d;b=l}} return b;}
+  return L.find(l=>l.crop===m.crop)||L[0];
 }
-function coach(m,want,tilt){
+function coach(m,look,tilt){
   const fixes=[];
-  if(!m) return {fixes:[{s:3,t:'Find her in the frame',d:'Point the camera at her so her head and shoulders are visible.'}],score:0};
-  const gk=targetGroup(m,want), g=PROFILE.groups[gk];
+  if(!m) return {fixes:[{s:3,t:'Find her in the frame',d:'Point the camera at her so her head and shoulders are visible.'}],score:0,look};
+  look=look||nearestLook(m);
+  const gk=look.crop, g=look.t;
   const add=(s,t,d)=>fixes.push({s,t,d});
-  if(gk==='full' && m.crop!=='full') add(3,'Step back','Her feet are cut off. In full-length shots she keeps her feet in.');
+  if(gk==='full' && m.crop!=='full') add(3,'Step back','Her feet are cut off. In this look she keeps her feet in.');
   if(gk!=='full' && m.crop==='full') add(2,'Step closer','Crop above her feet for this look.');
   if(tilt && Math.abs(tilt.gamma)>4) add(2, tilt.gamma>0?'Rotate counter-clockwise':'Rotate clockwise', `The phone is ${Math.abs(tilt.gamma).toFixed(0)}° off level. Keep verticals straight.`);
   const size = gk==='full' ? ['height',m.height] : ['scale',m.scale];
   const S=g[size[0]];
-  if(S && size[1]!=null){ if(size[1]<S.lo) add(2,'Step closer','She looks smaller than in the photos she likes.'); else if(size[1]>S.hi) add(2,'Step back','She looks bigger in the frame than she usually likes.'); }
-  if(g.legRatio && m.legRatio!=null && m.crop==='full'){ if(m.legRatio<g.legRatio.lo) add(2,'Lower the phone','Drop toward waist or hip height. Her favorites are shot from lower.'); else if(m.legRatio>g.legRatio.hi) add(1,'Raise the phone a little','This angle is lower than she usually likes.'); }
-  if(g.cx){ if(m.cx<g.cx.lo) add(1,'Move the phone left','So she sits where she likes in the frame.'); else if(m.cx>g.cx.hi) add(1,'Move the phone right','So she sits where she likes in the frame.'); }
+  if(S && size[1]!=null){ if(size[1]<S.lo) add(2,'Step closer','She looks smaller than in this look.'); else if(size[1]>S.hi) add(2,'Step back','She looks bigger in the frame than in this look.'); }
+  if(g.legRatio && m.legRatio!=null && m.crop==='full'){ if(m.legRatio<g.legRatio.lo) add(2,'Lower the phone','Drop toward waist or hip height. This look is shot from lower.'); else if(m.legRatio>g.legRatio.hi) add(1,'Raise the phone a little','This angle is lower than this look.'); }
+  if(g.cx){ if(m.cx<g.cx.lo) add(1,'Move the phone left','So she sits where she does in this look.'); else if(m.cx>g.cx.hi) add(1,'Move the phone right','So she sits where she does in this look.'); }
   if(m.headroom<0.01) add(3,'Tilt up','Her head is clipped.');
   else if(g.headroom && m.headroom>g.headroom.hi+0.05) add(1,'Tilt down slightly','Too much empty space above her head.');
   if(gk==='full' && g.ground && m.ground!=null){ if(m.ground<Math.max(0.005,g.ground.lo-0.02)) add(1,'Tilt down a touch','Leave a little ground under her feet.'); else if(m.ground>g.ground.hi+0.04) add(1,'Tilt up a touch','Too much ground below her feet.'); }
@@ -313,10 +411,11 @@ function coach(m,want,tilt){
     else if(m.lum<L.lum.lo-0.1) notes.push('Darker than her favorites. Move her toward a lamp or window.');
     if(L.warmth && m.warmth<L.warmth.lo-0.03) notes.push('The light is cooler than her style. Golden hour or warm lamps suit her better.');
   }
-  if(g.turn && m.turn>g.turn.hi+0.1) notes.push('Pose tip: ask her to turn sideways and look back over her shoulder.');
+  if(g.turn && m.turn>g.turn.hi+0.1) notes.push('Pose tip: for this look, ask her to turn sideways and look back over her shoulder.');
+  if(look.handUp>=0.5 && !m.handUp) notes.push('Pose tip: in this look she has a hand in her hair.');
   fixes.sort((a,b)=>b.s-a.s);
   const pen=fixes.reduce((a,f)=>a+(f.s===3?35:f.s===2?18:8),0)+notes.length*5;
-  return {fixes,notes,score:clamp(100-pen,0,100),group:gk};
+  return {fixes,notes,score:clamp(100-pen,0,100),look};
 }
 
 /* ---------- UI: tabs ---------- */
@@ -327,12 +426,41 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==='live') renderSeg();
 });
 
+function lookIcon(look,w,h){
+  const c=document.createElement('canvas'); c.width=w*2; c.height=h*2; const x=c.getContext('2d');
+  x.fillStyle='#0b0a09'; x.fillRect(0,0,c.width,c.height);
+  drawGuides(x,c.width,c.height,look,null,false,true);
+  return c;
+}
+function renderLooks(){
+  const ks=['auto',2,3,4,5,6], cur=PROFILE.k||'auto', canK=!!PROFILE.items;
+  $('#kSeg').style.display=canK?'flex':'none';
+  $('#kSeg').innerHTML=ks.map(k=>`<button data-k="${k}" class="${String(k)===String(cur)?'on':''}">${k==='auto'?'Auto':k}</button>`).join('');
+  $('#kSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{relook(PROFILE,b.dataset.k==='auto'?'auto':+b.dataset.k);save(PROFILE);wantLook='auto';renderProfile();});
+  const box=$('#looks'); box.innerHTML='';
+  for(const l of PROFILE.looks){
+    const d=document.createElement('div'); d.className='look';
+    d.appendChild(lookIcon(l,66,88));
+    const t=l.t, bits=[];
+    if(l.crop==='full'&&t.height) bits.push(`fills ${Math.round(t.height.med*100)}% of height`);
+    if(l.crop!=='full'&&t.scale) bits.push(`torso ${Math.round(t.scale.med*100)}% of height`);
+    if(t.cx) bits.push(Math.abs(t.cx.med-.5)<.06?'centered':(t.cx.med<.5?'left of center':'right of center'));
+    if(l.crop==='full'&&t.legRatio) bits.push(t.legRatio.med>1.6?'phone at waist/hip':t.legRatio.med>1.4?'phone at chest':'phone at eye level');
+    const info=document.createElement('div');
+    info.innerHTML=`<div class="nm">Look ${l.id}: ${l.name}</div><div class="mut">${l.n} photo${l.n>1?'s':''} · ${bits.join(' · ')}</div>`;
+    if(SESSION_THUMBS.length && l.members){const mem=document.createElement('div');mem.className='mem';l.members.forEach(i=>{const s=SESSION_THUMBS[i];if(s){const c=document.createElement('canvas');c.width=60;c.height=80;c.getContext('2d').drawImage(s,0,0,60,80);mem.appendChild(c);}});info.appendChild(mem);}
+    d.appendChild(info); box.appendChild(d);
+  }
+}
+let SESSION_THUMBS=[];
 function renderProfile(){
   if(!PROFILE){$('#profileLine').textContent='No profile yet';return;}
-  $('#profileLine').textContent=`Profile: ${PROFILE.n} photos · ${PROFILE.source}`;
+  ensureLooks(PROFILE);
+  $('#profileLine').textContent=`Profile: ${PROFILE.n} photos · ${PROFILE.looks.length} look${PROFILE.looks.length>1?'s':''} · ${PROFILE.source}`;
   $('#srcPill').textContent=PROFILE.source;
   $('#traits').innerHTML=describe(PROFILE).map(([k,v])=>`<li><span class="k">${k}</span><span>${v}</span></li>`).join('');
   $('#profileJson').value=JSON.stringify(PROFILE);
+  renderLooks();
 }
 
 /* ---------- load images ---------- */
@@ -367,23 +495,26 @@ $('#refInput').onchange=async e=>{
   const prog=$('#prog'), bar=prog.querySelector('i'); prog.style.display='block';
   $('#refStatus').textContent='Loading the pose model…'; $('#thumbs').innerHTML='';
   await initPose();
-  const items=[]; let skipped=0;
+  const items=[], thumbs=[]; let skipped=0;
   for(let i=0;i<files.length;i++){
     $('#refStatus').textContent=`Analyzing ${i+1} of ${files.length}…`; bar.style.width=((i+1)/files.length*100)+'%';
     try{const img=await loadImg(files[i]); const a=await analyzeImage(img);
-      if(a.m){items.push(a.m); $('#thumbs').appendChild(thumb(a.canvas,a.lm,a.m.crop==='full'?'full':a.m.crop==='three'?'below knee':'mid-thigh'));}
+      if(a.m){items.push(a.m); const t=thumb(a.canvas,a.lm,''); thumbs.push(t); $('#thumbs').appendChild(t);}
       else {skipped++; $('#thumbs').appendChild(thumb(a.canvas,null,'no person'));}
     }catch(err){skipped++;}
   }
   prog.style.display='none';
   if(items.length<3){$('#refStatus').textContent=`Only ${items.length} usable photo(s). Add at least 3 where she's clearly visible.`;return;}
-  PROFILE=buildProfile(items,'your photos'); save(PROFILE); renderProfile();
-  $('#refStatus').textContent=`Done: ${items.length} photos used${skipped?`, ${skipped} skipped (no clear person)`:''}.`;
+  PROFILE=buildProfile(items,'your photos','auto'); save(PROFILE);
+  SESSION_THUMBS=thumbs.map(t=>t.querySelector('canvas'));
+  PROFILE.looks.forEach(l=>l.members.forEach(i=>{const b=thumbs[i]?.querySelector('b'); if(b) b.textContent='Look '+l.id;}));
+  wantLook='auto'; renderProfile();
+  $('#refStatus').textContent=`Done: ${items.length} photos used${skipped?`, ${skipped} skipped (no clear person)`:''}. Found ${PROFILE.looks.length} look${PROFILE.looks.length>1?'s':''}.`;
   e.target.value='';
 };
-$('#resetBtn').onclick=()=>{PROFILE=STARTER;try{localStorage.removeItem('herAngleProfile')}catch(e){};renderProfile();$('#thumbs').innerHTML='';$('#refStatus').textContent='Using the starter profile from her 12 screenshots.';};
+$('#resetBtn').onclick=()=>{PROFILE=JSON.parse(JSON.stringify(STARTER));SESSION_THUMBS=[];try{localStorage.removeItem('herAngleProfile')}catch(e){};wantLook='auto';renderProfile();$('#thumbs').innerHTML='';$('#refStatus').textContent='Using the starter profile from her 12 screenshots.';};
 $('#copyBtn').onclick=async()=>{try{await navigator.clipboard.writeText($('#profileJson').value);$('#copyBtn').textContent='Copied';}catch(e){$('#profileJson').select();$('#copyBtn').textContent='Select & copy manually';}setTimeout(()=>$('#copyBtn').textContent='Copy',2000)};
-$('#loadJsonBtn').onclick=()=>{try{const p=JSON.parse($('#profileJson').value);if(!p.groups)throw 0;PROFILE=p;save(p);renderProfile();$('#loadJsonBtn').textContent='Loaded';}catch(e){$('#loadJsonBtn').textContent='That text isn\'t a profile';}setTimeout(()=>$('#loadJsonBtn').textContent='Load pasted profile',2000)};
+$('#loadJsonBtn').onclick=()=>{try{const p=JSON.parse($('#profileJson').value);if(!p.groups&&!p.looks)throw 0;PROFILE=ensureLooks(p);save(p);SESSION_THUMBS=[];wantLook='auto';renderProfile();$('#loadJsonBtn').textContent='Loaded';}catch(e){$('#loadJsonBtn').textContent='That text isn\'t a profile';}setTimeout(()=>$('#loadJsonBtn').textContent='Load pasted profile',2000)};
 
 /* ---------- check a shot ---------- */
 $('#checkInput').onchange=async e=>{
@@ -393,56 +524,75 @@ $('#checkInput').onchange=async e=>{
   const img=await loadImg(f); const a=await analyzeImage(img);
   const v=$('#checkView'), r=frameRect(a.canvas.width,a.canvas.height); v.width=r.w; v.height=r.h; v.style.display='block';
   const x=v.getContext('2d'); x.drawImage(a.canvas,r.x,r.y,r.w,r.h,0,0,r.w,r.h);
-  if(a.lm) drawSkeleton(x,a.lm,r.w,r.h,'#e8b26a');
-  const c=coach(a.m);
-  drawGuides(x,r.w,r.h,targetGroup(a.m),a.m,c.score>=80);
+  if(a.lm) drawSkeleton(x,a.lm,r.w,r.h,'rgba(232,178,106,.7)');
+  const c=coach(a.m, a.m?nearestLook(a.m):null);
+  drawGuides(x,r.w,r.h,c.look,a.m,c.score>=80);
   const col=c.score>=80?'var(--ok)':c.score>=55?'var(--warn)':'var(--bad)';
-  box.innerHTML=`<div class="row" style="align-items:baseline;gap:12px"><div class="score" style="color:${col}">${c.score}</div><div class="mut">match to her style${c.group?` · compared with her ${CROPNAME[c.group].toLowerCase()} shots`:''}</div></div>`+
-    (c.fixes.length?c.fixes.map(f=>`<div class="fix"><span class="dot" style="background:${f.s===3?'var(--bad)':f.s===2?'var(--warn)':'#8a8178'}"></span><div><b>${f.t}</b><div class="mut">${f.d}</div></div></div>`).join(''):'<div class="fix"><span class="dot" style="background:var(--ok)"></span><div><b>Framing matches her style</b></div></div>')+
+  box.innerHTML=`<div class="row" style="align-items:baseline;gap:12px"><div class="score" style="color:${col}">${c.score}</div><div class="mut">match to her style${c.look&&a.m?`<br>closest to <b style="color:var(--tx)">Look ${c.look.id}: ${c.look.name}</b>`:''}</div></div>`+
+    (c.fixes.length?c.fixes.map(f=>`<div class="fix"><span class="dot" style="background:${f.s===3?'var(--bad)':f.s===2?'var(--warn)':'#8a8178'}"></span><div><b>${f.t}</b><div class="mut">${f.d}</div></div></div>`).join(''):'<div class="fix"><span class="dot" style="background:var(--ok)"></span><div><b>Framing matches this look</b></div></div>')+
     (c.notes?.length?`<div class="note">${c.notes.join('<br>')}</div>`:'')+
-    `<div class="mut" style="margin-top:8px">The dashed box is where she usually sits in the frame (her spot). The solid box is where she is in this photo. The outer frame is the 3:4 Instagram crop.</div>`;
+    `<div class="mut" style="margin-top:8px">The dashed box and ghost figure show where she sits in this look. The solid box is where she is in your photo.</div>`;
   e.target.value='';
 };
 
 /* ---------- guides overlay ---------- */
-function targetBox(gk,m){
-  const g=PROFILE?.groups?.[gk]; if(!g||!g.headroom||!g.cx) return null;
-  const y0=g.headroom.med, y1=(gk==='full'&&g.ground)?1-g.ground.med:1;
-  const h=y1-y0;
-  let w;
-  if(m&&m.body){const bw=m.body.x1-m.body.x0, bh=Math.max(.05,m.body.y1-m.body.y0); w=bw*h/bh;} // keep her current width:height
-  else w=h*(gk==='full'?0.4:0.55);
+function lmBody(P){ // body box of a stored pose, same rules as metrics()
+  const lm=P.map(([x,y,v])=>({x,y,v})); const m=metrics(lm); return m?m.body:null;
+}
+function targetBox(look,m){
+  const g=look?.t; if(!g||!g.headroom||!g.cx) return null;
+  const y0=g.headroom.med, y1=(look.crop==='full'&&g.ground)?1-g.ground.med:1, h=y1-y0;
+  let w; const pb=look.pose&&lmBody(look.pose);
+  if(pb){w=(pb.x1-pb.x0)*h/Math.max(.05,pb.y1-pb.y0);}
+  else if(m&&m.body){w=(m.body.x1-m.body.x0)*h/Math.max(.05,m.body.y1-m.body.y0);}
+  else w=h*(look.crop==='full'?0.4:0.55);
   w=clamp(w,0.12,0.9);
-  return {x0:g.cx.med-w/2,x1:g.cx.med+w/2,y0,y1};
+  return {x0:g.cx.med-w/2,x1:g.cx.med+w/2,y0,y1,pb};
 }
 function bracketBox(ctx,b,W,H,color,dashed,label){
   const x=b.x0*W,y=b.y0*H,w=(b.x1-b.x0)*W,h=(b.y1-b.y0)*H,c=Math.min(w,h)*.18,lw=Math.max(2,W/200);
   ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=lw;
   if(dashed){ctx.setLineDash([lw*4,lw*3]); ctx.strokeRect(x,y,w,h); ctx.setLineDash([]); ctx.lineWidth=lw*2.2;
-    // corner brackets
     for(const[px,py,dx,dy]of[[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]]){ctx.beginPath();ctx.moveTo(px+dx*c,py);ctx.lineTo(px,py);ctx.lineTo(px,py+dy*c);ctx.stroke();}
-    // center tick
     ctx.lineWidth=lw; ctx.beginPath(); ctx.moveTo(x+w/2,y-lw*4); ctx.lineTo(x+w/2,y+lw*4); ctx.moveTo(x+w/2,y+h-lw*4); ctx.lineTo(x+w/2,y+h+lw*4); ctx.stroke();
   } else { ctx.strokeRect(x,y,w,h); }
   if(label){ctx.font=`600 ${Math.max(11,W/32)}px -apple-system,sans-serif`; const tw=ctx.measureText(label).width+12, th=Math.max(18,W/22);
     const ly=y-th-4<0?y+4:y-th-4; ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(x,ly,tw,th); ctx.fillStyle=color; ctx.textBaseline='middle'; ctx.fillText(label,x+6,ly+th/2);}
   ctx.restore();
 }
-function drawGuides(ctx,W,H,gk,m,matched){
-  const t=targetBox(gk,m); if(!t) return;
-  bracketBox(ctx,t,W,H,matched?'rgba(127,212,155,.95)':'rgba(255,255,255,.9)',true,matched?'Her spot ✓':'Her spot');
+function drawGhost(ctx,W,H,look,t,color){
+  if(!look.pose||!t.pb) return;
+  const pb=t.pb, s=(t.y1-t.y0)/Math.max(.05,pb.y1-pb.y0), pcx=(pb.x0+pb.x1)/2, tcx=(t.x0+t.x1)/2;
+  const lm=look.pose.map(([x,y,v])=>({x:tcx+(x-pcx)*s*((pb.y1-pb.y0)>0?1:1), y:t.y0+(y-pb.y0)*s, v}));
+  ctx.save(); ctx.globalAlpha=.55; drawSkeleton(ctx,lm,W,H,color);
+  const n=lm[0]; if(n.v>.5){ctx.beginPath();ctx.fillStyle=color;ctx.arc(n.x*W,n.y*H,Math.max(3,W/90),0,7);ctx.fill();}
+  ctx.restore();
+}
+function drawGuides(ctx,W,H,look,m,matched,icon){
+  const t=targetBox(look,m); if(!t) return;
+  const col=matched?'rgba(127,212,155,.95)':'rgba(255,255,255,.9)';
+  drawGhost(ctx,W,H,look,t,matched?'#7fd49b':'#ffffff');
+  bracketBox(ctx,t,W,H,col,true,icon?null:(matched?`Look ${look.id} ✓`:`Look ${look.id}`));
   if(m&&m.body) bracketBox(ctx,m.body,W,H,matched?'rgba(127,212,155,.95)':'rgba(232,178,106,.95)',false,null);
 }
 
 /* ---------- live coach ---------- */
-let stream=null, running=false, busy=false, tilt=null, wantCrop=null, lastLight={}, frameN=0, lastM=null, hold=0;
+let stream=null, running=false, busy=false, tilt=null, wantLook='auto', autoId=null, autoCand=null, autoCount=0, lastLight={}, frameN=0, hold=0;
 function renderSeg(){
   if(!PROFILE) return;
-  const order=Object.entries(PROFILE.crops).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
-  if(!wantCrop||!order.includes(wantCrop)) wantCrop=order[0];
-  const nm={full:'Full length',three:'Below knee',half:'Mid-thigh'};
-  $('#cropSeg').innerHTML=order.map(c=>`<button data-c="${c}" class="${c===wantCrop?'on':''}">${nm[c]} <span class="mut">(${PROFILE.crops[c]})</span></button>`).join('');
-  $('#cropSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{wantCrop=b.dataset.c;renderSeg();});
+  ensureLooks(PROFILE);
+  const seg=$('#cropSeg'); seg.innerHTML='';
+  const mk=(id,label,icon)=>{const b=document.createElement('button'); b.className=String(id)===String(wantLook)?'on':''; if(icon) b.appendChild(icon); b.insertAdjacentHTML('beforeend',`<span>${label}</span>`); b.onclick=()=>{wantLook=id;renderSeg();}; seg.appendChild(b);};
+  mk('auto','Auto',null);
+  for(const l of PROFILE.looks) mk(l.id,`Look ${l.id}`,lookIcon(l,30,40));
+}
+function liveLook(m){
+  if(wantLook!=='auto') return lookById(wantLook);
+  const n=nearestLook(m);                       // switch only after it wins ~8 frames in a row
+  if(autoId==null){autoId=n.id;}
+  else if(n.id!==autoId){ if(autoCand===n.id) autoCount++; else {autoCand=n.id;autoCount=1;} if(autoCount>=8){autoId=n.id;autoCount=0;} }
+  else autoCount=0;
+  return lookById(autoId);
 }
 function onOrient(e){ if(e.beta==null) return;
   // portrait: gamma = left/right roll, beta ≈ 90 when upright
@@ -489,14 +639,15 @@ async function loop(){
       let m=lm?metrics(lm):null;
       if(m && (frameN++%15===0)) lastLight=measureLight(v,v.videoWidth,v.videoHeight,m.box);
       if(m) Object.assign(m,lastLight);
-      const c=coach(m,wantCrop,tilt);
+      const look=m?liveLook(m):(wantLook==='auto'?lookById(autoId??1):lookById(wantLook));
+      const c=coach(m,look,tilt);
       const good=m && !c.fixes.some(f=>f.s>=2) && c.fixes.length<=1;
       hold = good ? hold+1 : 0;
-      drawGuides(ctx,W,H,wantCrop,m,hold>3);
       if(lm) drawSkeleton(ctx,lm,W,H,hold>3?'rgba(127,212,155,.7)':'rgba(232,178,106,.6)');
+      drawGuides(ctx,W,H,look,m,hold>3);
       $('#stage').classList.toggle('match',hold>3);
       if(hold>3){ $('#cue').textContent='✓ That\'s her angle. Shoot now'; $('#cue2').textContent=(c.notes&&c.notes[0])||'Ask her to move naturally and fire a burst.'; }
-      else { $('#cue').textContent=c.fixes[0]?.t||'Almost there'; $('#cue2').textContent=c.fixes[1]?('Then: '+c.fixes[1].t.toLowerCase()):(c.notes?.[0]||c.fixes[0]?.d||''); }
+      else { $('#cue').textContent=c.fixes[0]?.t||'Almost there'; $('#cue2').textContent=(look?`Look ${look.id}: ${look.name}`:'')+(c.fixes[1]?(' · then '+c.fixes[1].t.toLowerCase()):''); }
     }catch(e){}
     busy=false;
   }
@@ -511,7 +662,7 @@ $('#snapBtn').onclick=()=>{
 
 /* ---------- boot ---------- */
 renderProfile();
-window.__herAngle={initPose,analyzeImage,buildProfile,loadImg,describe,coach};
+window.__herAngle={initPose,analyzeImage,buildProfile,loadImg,describe,coach,relook,nearestLook};
 </script>
 </body>
 </html>
